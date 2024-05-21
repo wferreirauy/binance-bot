@@ -33,3 +33,22 @@ func GetOrder(symbol string, id int64) (res *binance_connector.GetOrderResponse,
 	}
 	return order, nil
 }
+
+// create new order, side BUY or SELL, with ammount in usdt
+/*
+	 if order, err := NewOrder("SOLUSDT", "SELL", 0.5, 178.05); err == nil {
+		fmt.Println(binance_connector.PrettyPrint(order))
+*/
+func NewOrder(symbol string, side string, quantity float64, price float64) (interface{}, error) {
+
+	client := binance_connector.NewClient(apikey, secretkey, baseurl)
+
+	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
+		Type("LIMIT").TimeInForce("GTC").Quantity(quantity).Price(price).Do(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	// return order id
+	return newOrder, err
+
+}
