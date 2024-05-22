@@ -1,4 +1,4 @@
-# binance-bot
+# Binance Trade Bot
 
 ## Binance API documentation
 https://binance-docs.github.io/apidocs/spot/en/#general-info
