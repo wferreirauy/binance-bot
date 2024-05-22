@@ -2,48 +2,27 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 )
 
-func TradeSell(ticker string, qty float64, sellFactor float64) (interface{}, error) {
-	currentPrice, err := GetPrice(ticker)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func TradeSell(ticker string, qty float64, basePrice float64, sellFactor float64) interface{} {
 	dt := time.Now()
-	fmt.Println("Order Time: ", dt.String())
-	fmt.Printf("%s PRICE: %.2f\n", ticker, currentPrice)
+	fmt.Println("Order Time: ", dt.Format(time.UnixDate))
 
-	sellPrice := toFixed(currentPrice*sellFactor, 2)
+	sellPrice := toFixed(basePrice*sellFactor, 2)
 	fmt.Printf("%s SELL PRICE: %.2f\n", ticker, sellPrice)
 
-	order, err := NewOrder(ticker, "SELL", qty, sellPrice)
-	if err != nil {
-		return nil, err
-	}
-
-	return order, nil
+	order := NewOrder(ticker, "SELL", qty, sellPrice)
+	return order
 }
 
-func TradeBuy(ticker string, qty float64, buyFactor float64) (interface{}, error) {
-	currentPrice, err := GetPrice(ticker)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func TradeBuy(ticker string, qty float64, basePrice float64, buyFactor float64) interface{} {
 	dt := time.Now()
-	fmt.Println("Order Time: ", dt.String())
-	fmt.Printf("%s PRICE: %.2f\n", ticker, currentPrice)
+	fmt.Println("Order Time: ", dt.Format(time.UnixDate))
 
-	buyPrice := toFixed(currentPrice*buyFactor, 2)
+	buyPrice := toFixed(basePrice*buyFactor, 2)
 	fmt.Printf("%s BUY PRICE: %.2f\n", ticker, buyPrice)
 
-	order, err := NewOrder(ticker, "BUY", qty, buyPrice)
-	if err != nil {
-		return nil, err
-	}
-
-	return order, nil
+	order := NewOrder(ticker, "BUY", qty, buyPrice)
+	return order
 }
