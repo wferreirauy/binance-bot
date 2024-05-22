@@ -30,6 +30,7 @@ func BullTrade(ticker string, qty float64, sellFactor float64, buyFactor float64
 
 		if getor, err := GetOrder(ticker, bid); err == nil {
 			fmt.Printf("BUY order created. Id: %d - Status: %s\n\n", getor.OrderId, getor.Status)
+			fmt.Printf("SELL order will be for price: %.2f\n", toFixed(basePrice*sellFactor, 2))
 		}
 
 		for { // looking at buy order until filled
