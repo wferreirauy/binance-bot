@@ -47,7 +47,7 @@ func BullTrade(ticker string, qty float64, sellFactor float64, buyFactor float64
 					break
 				}
 			}
-			time.Sleep(10 * time.Second)
+			time.Sleep(10 * time.Second) // wait 10 secs to take another look
 		}
 
 		for { // looking at sell order until FILLED
@@ -57,8 +57,9 @@ func BullTrade(ticker string, qty float64, sellFactor float64, buyFactor float64
 					break
 				}
 			}
+			time.Sleep(10 * time.Second) // wait 10 secs to take another look
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(10 * time.Second) // wait 10 secs for next operation
 	}
 }
