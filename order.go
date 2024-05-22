@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
 	binance_connector "github.com/binance/binance-connector-go"
 )
@@ -40,28 +39,28 @@ func GetOrder(symbol string, id int64) (res *binance_connector.GetOrderResponse,
 	 if order, err := NewOrder("SOLUSDT", "SELL", 0.5, 178.05); err == nil {
 		fmt.Println(binance_connector.PrettyPrint(order))
 */
-func NewOrder(symbol string, side string, quantity float64, price float64) interface{} {
+func NewOrder(symbol string, side string, quantity float64, price float64) (interface{}, error) {
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
 	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type("LIMIT").TimeInForce("GTC").Quantity(quantity).Price(price).Do(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("order: creating new order: %w", err)
 	}
-	return newOrder
+	return newOrder, nil
 
 }
 
-func TestNewOrder(symbol string, side string, quantity float64, price float64) interface{} {
+func TestNewOrder(symbol string, side string, quantity float64, price float64) (interface{}, error) {
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
 	newOrder, err := client.NewTestNewOrder().Symbol(symbol).Side(side).
 		OrderType("LIMIT").TimeInForce("GTC").Quantity(quantity).Price(price).Do(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("order: creating new order: %w", err)
 	}
-	return newOrder
+	return newOrder, nil
 
 }

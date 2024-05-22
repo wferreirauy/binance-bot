@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -12,7 +13,10 @@ func TradeSell(ticker string, qty float64, basePrice float64, sellFactor float64
 	sellPrice := toFixed(basePrice*sellFactor, 2)
 	fmt.Printf("%s SELL PRICE: %.2f\n", ticker, sellPrice)
 
-	order := NewOrder(ticker, "SELL", qty, sellPrice)
+	order, err := NewOrder(ticker, "SELL", qty, sellPrice)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return order
 }
 
@@ -23,6 +27,9 @@ func TradeBuy(ticker string, qty float64, basePrice float64, buyFactor float64) 
 	buyPrice := toFixed(basePrice*buyFactor, 2)
 	fmt.Printf("%s BUY PRICE: %.2f\n", ticker, buyPrice)
 
-	order := NewOrder(ticker, "BUY", qty, buyPrice)
+	order, err := NewOrder(ticker, "BUY", qty, buyPrice)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return order
 }
