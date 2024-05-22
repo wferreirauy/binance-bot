@@ -7,7 +7,9 @@ import (
 	binance_connector "github.com/binance/binance-connector-go"
 )
 
-// get all orders
+// orders fee = 0.01% (* 0.0001)
+
+// get all orders by ticker
 // GetAllOrders("SOLUSDT")
 func GetAllOrders(symbol string) {
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
