@@ -58,6 +58,11 @@ func main() {
 						Aliases: []string{"s"},
 					},
 					&cli.IntFlag{
+						Name:    "round",
+						Usage:   "price decimals round",
+						Aliases: []string{"r"},
+					},
+					&cli.IntFlag{
 						Name:    "operations",
 						Usage:   "number of operations",
 						Aliases: []string{"o"},
@@ -65,7 +70,7 @@ func main() {
 				},
 				Action: func(cCtx *cli.Context) error {
 					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("buyFactor"),
-						cCtx.Float64("sellFactor"), cCtx.Int("operations"))
+						cCtx.Float64("sellFactor"), cCtx.Int("round"), cCtx.Int("operations"))
 					return nil
 				},
 			},

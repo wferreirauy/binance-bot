@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func BullTrade(ticker string, qty float64, buyFactor float64, sellFactor float64, operations int) {
+func BullTrade(ticker string, qty float64, buyFactor float64, sellFactor float64, round int, operations int) {
 
 	operation := 0
 	var bid int64 = 0
@@ -24,17 +24,17 @@ func BullTrade(ticker string, qty float64, buyFactor float64, sellFactor float64
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s PRICE: %.2f\n", ticker, basePrice)
+		fmt.Printf("%s PRICE: %.5f\n", ticker, basePrice)
 
 		fmt.Println("New BUY order")
 		// buy
-		buy := TradeBuy(ticker, qty, basePrice, buyFactor)
+		buy := TradeBuy(ticker, qty, basePrice, buyFactor, round)
 		buyOrder := reflect.ValueOf(buy).Elem()
 		bid = buyOrder.FieldByName("OrderId").Int()
 
 		if getor, err := GetOrder(ticker, bid); err == nil {
 			fmt.Printf("BUY order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
-			fmt.Printf("SELL order will be for price: %.2f\n", toFixed(basePrice*sellFactor, 2))
+			fmt.Printf("SELL order will be for price: %.5f\n", toFixed(basePrice*sellFactor, 4))
 		}
 
 		for { // looking at buy order until filled
@@ -43,7 +43,7 @@ func BullTrade(ticker string, qty float64, buyFactor float64, sellFactor float64
 					fmt.Println("BUY order filled!")
 					fmt.Println("New SELL order")
 					// sell
-					sell := TradeSell(ticker, qty, basePrice, sellFactor)
+					sell := TradeSell(ticker, qty, basePrice, sellFactor, round)
 					sellOrder := reflect.ValueOf(sell).Elem()
 					sid = sellOrder.FieldByName("OrderId").Int()
 					if getor, err := GetOrder(ticker, sid); err == nil {
