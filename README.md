@@ -1,13 +1,5 @@
 # Binance Trade Bot
 
-## Binance API documentation
-
-https://binance-docs.github.io/apidocs/spot/en/#general-info
-
-## Binance GO library
-
-https://github.com/binance/binance-connector-go
-
 ## Usage
 
 Run `binance-bot --help`
@@ -33,3 +25,13 @@ GLOBAL OPTIONS:
    --help, -h     show help
    --version, -v  print the version
 ```
+
+## References
+
+### Binance API documentation
+
+https://binance-docs.github.io/apidocs/spot/en/#general-info
+
+### Binance GO library
+
+https://github.com/binance/binance-connector-go
