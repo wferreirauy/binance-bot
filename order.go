@@ -7,10 +7,8 @@ import (
 	binance_connector "github.com/binance/binance-connector-go"
 )
 
-// orders fee = 0.01% (* 0.0001)
+// Orders fee = 0.01% (* 0.0001)
 
-// get all orders by ticker
-// GetAllOrders("SOLUSDT")
 func GetAllOrders(symbol string) {
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 	// Binance Get all account orders; active, canceled, or filled - GET /api/v3/allOrders
@@ -23,10 +21,6 @@ func GetAllOrders(symbol string) {
 	fmt.Println(binance_connector.PrettyPrint(getAllOrders))
 }
 
-// get order by symbol and id
-/* if order, err := GetOrder("SOLUSDT", 6148978765); err == nil {
-	fmt.Println(binance_connector.PrettyPrint(order))
-} */
 func GetOrder(symbol string, id int64) (res *binance_connector.GetOrderResponse, err error) {
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 	order, err := client.NewGetOrderService().Symbol(symbol).OrderId(id).Do(context.Background())
@@ -36,11 +30,6 @@ func GetOrder(symbol string, id int64) (res *binance_connector.GetOrderResponse,
 	return order, nil
 }
 
-// create new order, side BUY or SELL, with ammount in usdt
-/*
-	 if order, err := NewOrder("SOLUSDT", "SELL", 0.5, 178.05); err == nil {
-		fmt.Println(binance_connector.PrettyPrint(order))
-*/
 func NewOrder(symbol string, side string, quantity float64, price float64) (interface{}, error) {
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
