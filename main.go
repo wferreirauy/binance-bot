@@ -29,12 +29,12 @@ func main() {
 		},
 		HelpName:             "binance-bot",
 		Usage:                "A program bot to trade in Binance",
-		UsageText:            "binance-bot [global options] command <command options>",
+		UsageText:            "binance-bot [global options] command <command args>",
 		EnableBashCompletion: true,
 		Commands: []*cli.Command{
 			&cli.Command{
 				Name:    "bull-trade",
-				Usage:   "start a bull trade run",
+				Usage:   "Start a bull trade run",
 				Aliases: []string{"bt"},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
