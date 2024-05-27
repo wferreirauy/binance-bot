@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
+	"strings"
 )
 
 var Reset = "\033[0m"
@@ -16,32 +16,40 @@ var Cyan = "\033[36m"
 var Gray = "\033[37m"
 var White = "\033[97m"
 
-func TradeBuy(ticker string, qty float64, basePrice float64, buyFactor float64, round int) interface{} {
-	dt := time.Now()
-	fmt.Println("Order Time: ", dt.Format(time.UnixDate))
-
+func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round int) (interface{}, error) {
 	buyPrice := toFixed(basePrice*buyFactor, round)
 	total := buyPrice * qty
-	fmt.Printf("%sBUY%s %.5f %s - PRICE: %.5f - Total USDT: %.2f\n", Green, Reset, qty, ticker, buyPrice, total)
-
-	order, err := NewOrder(ticker, "BUY", qty, buyPrice)
-	if err != nil {
-		log.Fatal(err)
+	tick := strings.Replace(ticker, "/", "", -1)
+	scoin, dcoin, found := strings.Cut(ticker, "/")
+	if !found {
+		log.Fatal("ticker malformed, / is missing ")
 	}
-	return order
+
+	fmt.Printf("%sBUY%s %f %s - PRICE: %.8f - Total %s: %f\n",
+		Green, Reset, qty, scoin, buyPrice, dcoin, total)
+
+	order, err := NewOrder(tick, "BUY", qty, buyPrice)
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
 }
 
-func TradeSell(ticker string, qty float64, basePrice float64, sellFactor float64, round int) interface{} {
-	dt := time.Now()
-	fmt.Println("Order Time: ", dt.Format(time.UnixDate))
-
+func TradeSell(ticker string, qty, basePrice, sellFactor float64, round int) (interface{}, error) {
 	sellPrice := toFixed(basePrice*sellFactor, round)
 	total := sellPrice * qty
-	fmt.Printf("%sSELL%s %.5f %s - PRICE: %.5f - Total USDT: %.2f\n", Red, Reset, qty, ticker, sellPrice, total)
-
-	order, err := NewOrder(ticker, "SELL", qty, sellPrice)
-	if err != nil {
-		log.Fatal(err)
+	tick := strings.Replace(ticker, "/", "", -1)
+	scoin, dcoin, found := strings.Cut(ticker, "/")
+	if !found {
+		log.Fatal("ticker malformed, / is missing ")
 	}
-	return order
+
+	fmt.Printf("%sSELL%s %f %s - PRICE: %.8f - Total %s: %f\n",
+		Red, Reset, qty, scoin, sellPrice, dcoin, total)
+
+	order, err := NewOrder(tick, "SELL", qty, sellPrice)
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
 }

@@ -4,67 +4,134 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/fatih/color"
+	binance_connector "github.com/binance/binance-connector-go"
+	color "github.com/fatih/color"
 )
 
-func BullTrade(ticker string, qty float64, buyFactor float64, sellFactor float64, round int, operations int) {
+var cyan = color.New(color.FgCyan, color.Bold).SprintFunc()
+var red = color.New(color.FgRed, color.Bold).SprintFunc()
+var green = color.New(color.FgGreen, color.Bold).SprintFunc()
+
+func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops int) {
+
+	client := binance_connector.NewClient(apikey, secretkey, baseurl)
+
+	period := 26 // period for moving average
+
+	// parse symbol
+	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
+		log.Fatal("error parsing ticker: must match ^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$")
+	}
+	scoin, dcoin, found := strings.Cut(symbol, "/")
+	if !found {
+		log.Fatal("error parsing ticker: \"/\" is missing ")
+	}
+	ticker := strings.Replace(symbol, "/", "", -1)
+
+	var buyPrice float64
 
 	operation := 0
-	var bid int64 = 0
-	var sid int64 = 0
+	for range max_ops {
+		fmt.Println("Operation", cyan("#"+strconv.Itoa(operation)))
+		qty = toFixed(qty, roundAmount)
 
-	for range operations {
-
-		c := color.New(color.FgCyan, color.Bold)
-		c.Printf("Operation #%d\n", operation)
-
-		basePrice, err := GetPrice(ticker)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("%s PRICE: %.5f\n", ticker, basePrice)
-
-		fmt.Println("New BUY order")
 		// buy
-		buy := TradeBuy(ticker, qty, basePrice, buyFactor, round)
-		buyOrder := reflect.ValueOf(buy).Elem()
-		bid = buyOrder.FieldByName("OrderId").Int()
+		for {
+			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
+			if err != nil {
+				log.Printf("Error getting historical prices: %v", err)
+				continue
+			}
+			price := historicalPrices[len(historicalPrices)-1]
+			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
+			sma := calculateSMA(historicalPrices, period)
+			ema := calculateEMA(historicalPrices, period)
+			lastMacd, lastSignal, macd, signal := calculateMACD(historicalPrices, 12, 26, 9)
+			rsi := calculateRSI(historicalPrices, period)
 
-		if getor, err := GetOrder(ticker, bid); err == nil {
-			fmt.Printf("BUY order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
-			fmt.Printf("SELL order will be for price: %.5f\n", toFixed(basePrice*sellFactor, 4))
-		}
+			if rsi < 70 && ema[len(ema)-1] > sma && lastMacd > lastSignal && macd[len(macd)-2] <= signal[len(signal)-2] {
+				log.Printf("Creating new %s order", green("BUY"))
+				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
+				if err != nil {
+					log.Printf("error creating BUY order: %s", err)
+					continue
+				}
+				buyOrder := reflect.ValueOf(buy).Elem()
+				orderId := buyOrder.FieldByName("OrderId").Int()
+				orderPrice := buyOrder.FieldByName("Price").String()
+				buyPrice, err = strconv.ParseFloat(orderPrice, 64)
+				if err != nil {
+					log.Printf("could not convert price on buy order to float: %s", err)
+				}
 
-		for { // looking at buy order until filled
-			if getor, err := GetOrder(ticker, bid); err == nil {
-				if getor.Status == "FILLED" {
-					fmt.Println("BUY order filled!")
-					fmt.Println("New SELL order")
-					// sell
-					sell := TradeSell(ticker, qty, basePrice, sellFactor, round)
-					sellOrder := reflect.ValueOf(sell).Elem()
-					sid = sellOrder.FieldByName("OrderId").Int()
-					if getor, err := GetOrder(ticker, sid); err == nil {
-						fmt.Printf("SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+				if getor, err := GetOrder(ticker, orderId); err == nil {
+					log.Printf("BUY order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+				}
+
+				for { // looking at buy order until filled
+					if getor, err := GetOrder(ticker, orderId); err == nil {
+						if getor.Status == "FILLED" {
+							log.Println("BUY order filled!")
+							break // buy filled
+						}
 					}
-					break
+					time.Sleep(10 * time.Second) // 10 secs to take another look
 				}
+				break // indicators conditions meet
 			}
-			time.Sleep(10 * time.Second) // wait 10 secs to take another look
+			time.Sleep(20 * time.Second)
 		}
 
-		for { // looking at sell order until FILLED
-			if getor, err := GetOrder(ticker, sid); err == nil {
-				if getor.Status == "FILLED" {
-					fmt.Printf("SELL order filled!\n\n")
-					break
-				}
+		time.Sleep(30 * time.Second)
+
+		// sell
+		for {
+			currentPrice, err := GetPrice(client, ticker)
+			if err != nil {
+				log.Printf("Error getting current price: %s", err)
+				continue
 			}
-			time.Sleep(10 * time.Second) // wait 10 secs to take another look
+			log.Printf("%s PRICE is %.8f %s\n", scoin, currentPrice, dcoin)
+			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
+			if err != nil {
+				log.Printf("Error getting historical prices: %v", err)
+				continue
+			}
+			sma := calculateSMA(historicalPrices, period)
+			ema := calculateEMA(historicalPrices, period)
+			lastMacd, lastSignal, macd, signal := calculateMACD(historicalPrices, 12, 26, 9)
+			// rsi := calculateRSI(historicalPrices, period)
+			if ema[len(ema)-1] < sma && lastMacd < lastSignal && macd[len(macd)-2] >= signal[len(signal)-2] && currentPrice > buyPrice {
+				log.Printf("Creating new %s order", red("SELL"))
+				sell, err := TradeSell(symbol, qty, currentPrice, sellFactor, roundPrice)
+				if err != nil {
+					log.Printf("error creating SELL order: %s", err)
+					continue
+				}
+				sellOrder := reflect.ValueOf(sell).Elem()
+				orderId := sellOrder.FieldByName("OrderId").Int()
+				if getor, err := GetOrder(ticker, orderId); err == nil {
+					log.Printf("SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+				}
+				for { // looking at sell order until FILLED
+					if getor, err := GetOrder(ticker, orderId); err == nil {
+						if getor.Status == "FILLED" {
+							log.Printf("SELL order filled!\n\n")
+							break // sell filled
+						}
+					}
+					time.Sleep(10 * time.Second) // 10 secs to take another look
+				}
+				break // indicators conditions meet
+			}
+			time.Sleep(20 * time.Second)
 		}
 		operation++
-		time.Sleep(10 * time.Second) // wait 10 secs for next operation
+		time.Sleep(1 * time.Minute) // 1 minute to start next operation
 	}
 }

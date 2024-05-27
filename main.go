@@ -39,7 +39,7 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "ticker",
-						Usage:   "ticker to trade, eg. BTCUSDT",
+						Usage:   "ticker to trade, format ABC/USD eg. BTC/USDT",
 						Aliases: []string{"t"},
 					},
 					&cli.Float64Flag{
@@ -48,19 +48,24 @@ func main() {
 						Aliases: []string{"a"},
 					},
 					&cli.Float64Flag{
-						Name:    "buyFactor",
+						Name:    "buy-factor",
 						Usage:   "target factor for LIMIT buy",
 						Aliases: []string{"b"},
 					},
 					&cli.Float64Flag{
-						Name:    "sellFactor",
+						Name:    "sell-factor",
 						Usage:   "target factor for LIMIT sell",
 						Aliases: []string{"s"},
 					},
 					&cli.IntFlag{
-						Name:    "round",
+						Name:    "round-price",
 						Usage:   "price decimals round",
-						Aliases: []string{"r"},
+						Aliases: []string{"rp"},
+					},
+					&cli.IntFlag{
+						Name:    "round-amount",
+						Usage:   "price decimals round",
+						Aliases: []string{"ra"},
 					},
 					&cli.IntFlag{
 						Name:    "operations",
@@ -69,8 +74,9 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("buyFactor"),
-						cCtx.Float64("sellFactor"), cCtx.Int("round"), cCtx.Int("operations"))
+					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("buy-factor"),
+						cCtx.Float64("sell-factor"), cCtx.Int("round-price"), cCtx.Int("round-amount"),
+						cCtx.Int("operations"))
 					return nil
 				},
 			},
