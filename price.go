@@ -27,12 +27,22 @@ func GetPrice(client *binance_connector.Client, symbol string) (float64, error) 
 }
 
 // SMA
-func calculateSMA(prices []float64, period int) float64 {
-	sum := 0.0
-	for _, price := range prices {
-		sum += price
+func calculateSMA(prices []float64, period int) []float64 {
+	if len(prices) < period {
+		return []float64{}
 	}
-	return sum / float64(period)
+
+	sma := make([]float64, len(prices)-(period-1))
+
+	for i := 0; i <= len(prices)-period; i++ {
+		sum := 0.0
+		for j := 0; j < period; j++ {
+			sum += prices[i+j]
+		}
+		sma[i] = sum / float64(period)
+	}
+
+	return sma
 }
 
 // EMA

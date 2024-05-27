@@ -51,10 +51,10 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
-			lastMacd, lastSignal, macd, signal := calculateMACD(historicalPrices, 12, 26, 9)
+			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
 			rsi := calculateRSI(historicalPrices, period)
 
-			if rsi < 70 && ema[len(ema)-1] > sma && lastMacd > lastSignal && macd[len(macd)-2] <= signal[len(signal)-2] {
+			if rsi < 70 && ema[len(ema)-1] > sma[len(sma)-1] && ema[len(ema)-2] <= sma[len(sma)-2] && lastMacd > lastSignal {
 				log.Printf("Creating new %s order", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
@@ -104,9 +104,9 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			}
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
-			lastMacd, lastSignal, macd, signal := calculateMACD(historicalPrices, 12, 26, 9)
+			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
 			// rsi := calculateRSI(historicalPrices, period)
-			if ema[len(ema)-1] < sma && lastMacd < lastSignal && macd[len(macd)-2] >= signal[len(signal)-2] && currentPrice > buyPrice {
+			if ema[len(ema)-1] < sma[len(sma)-1] && ema[len(ema)-2] >= sma[len(sma)-2] && lastMacd < lastSignal && currentPrice > buyPrice {
 				log.Printf("Creating new %s order", red("SELL"))
 				sell, err := TradeSell(symbol, qty, currentPrice, sellFactor, roundPrice)
 				if err != nil {
