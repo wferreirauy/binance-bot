@@ -44,7 +44,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		for {
 			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
 			if err != nil {
-				log.Printf("Error getting historical prices: %v", err)
+				log.Printf("Error getting historical prices: %v\n", err)
 				continue
 			}
 			price := historicalPrices[len(historicalPrices)-1]
@@ -55,18 +55,17 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			rsi := calculateRSI(historicalPrices, period)
 
 			if rsi < 70 && ema[len(ema)-1] > sma[len(sma)-1] && ema[len(ema)-2] <= sma[len(sma)-2] && lastMacd > lastSignal {
-				log.Printf("Creating new %s order", green("BUY"))
+				log.Printf("Creating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
-					log.Printf("error creating BUY order: %s", err)
-					continue
+					log.Fatalf("error creating BUY order: %s\n", err)
 				}
 				buyOrder := reflect.ValueOf(buy).Elem()
 				orderId := buyOrder.FieldByName("OrderId").Int()
 				orderPrice := buyOrder.FieldByName("Price").String()
 				buyPrice, err = strconv.ParseFloat(orderPrice, 64)
 				if err != nil {
-					log.Printf("could not convert price on buy order to float: %s", err)
+					log.Printf("could not convert price on buy order to float: %s\n", err)
 				}
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
@@ -93,13 +92,13 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		for {
 			currentPrice, err := GetPrice(client, ticker)
 			if err != nil {
-				log.Printf("Error getting current price: %s", err)
+				log.Printf("Error getting current price: %s\n", err)
 				continue
 			}
 			log.Printf("%s PRICE is %.8f %s\n", scoin, currentPrice, dcoin)
 			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
 			if err != nil {
-				log.Printf("Error getting historical prices: %v", err)
+				log.Printf("Error getting historical prices: %v\n", err)
 				continue
 			}
 			sma := calculateSMA(historicalPrices, period)
@@ -107,11 +106,10 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
 			// rsi := calculateRSI(historicalPrices, period)
 			if ema[len(ema)-1] < sma[len(sma)-1] && ema[len(ema)-2] >= sma[len(sma)-2] && lastMacd < lastSignal && currentPrice > buyPrice {
-				log.Printf("Creating new %s order", red("SELL"))
+				log.Printf("Creating new %s order\n", red("SELL"))
 				sell, err := TradeSell(symbol, qty, currentPrice, sellFactor, roundPrice)
 				if err != nil {
-					log.Printf("error creating SELL order: %s", err)
-					continue
+					log.Fatalf("error creating SELL order: %s\n", err)
 				}
 				sellOrder := reflect.ValueOf(sell).Elem()
 				orderId := sellOrder.FieldByName("OrderId").Int()

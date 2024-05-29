@@ -43,6 +43,7 @@ func NewOrder(symbol, side string, quantity, price float64) (interface{}, error)
 
 }
 
+// TODO set stop loss boundaries
 /* func placeStopLossOrder(client *binance.Client, symbol string, quantity, stopPrice, limitPrice float64) error {
 	order, err := client.NewCreateOrderService().
 		Symbol(symbol).
