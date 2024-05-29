@@ -93,25 +93,20 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		// sell
 		fmt.Print("\033[s") // save the cursor position
 		for {
-			currentPrice, err := GetPrice(client, ticker)
-			if err != nil {
-				log.Printf("Error getting current price: %s\n", err)
-				continue
-			}
-			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
-			log.Printf("%s PRICE is %.8f %s\n", scoin, currentPrice, dcoin)
 			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
 			if err != nil {
 				log.Printf("Error getting historical prices: %v\n", err)
 				continue
 			}
+			price := historicalPrices[len(historicalPrices)-1]
+			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
+			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
 			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
-			// rsi := calculateRSI(historicalPrices, period)
-			if ema[len(ema)-1] < sma[len(sma)-1] && ema[len(ema)-2] >= sma[len(sma)-2] && lastMacd < lastSignal && currentPrice > buyPrice {
+			if ema[len(ema)-1] < sma[len(sma)-1] && ema[len(ema)-2] >= sma[len(sma)-2] && lastMacd < lastSignal && price > buyPrice {
 				log.Printf("Creating new %s order\n", red("SELL"))
-				sell, err := TradeSell(symbol, qty, currentPrice, sellFactor, roundPrice)
+				sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order: %s\n", err)
 				}
