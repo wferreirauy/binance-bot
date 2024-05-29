@@ -41,6 +41,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		qty = toFixed(qty, roundAmount)
 
 		// buy
+		fmt.Print("\033[s") // save the cursor position
 		for {
 			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
 			if err != nil {
@@ -48,6 +49,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 				continue
 			}
 			price := historicalPrices[len(historicalPrices)-1]
+			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
 			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
@@ -89,12 +91,14 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		time.Sleep(30 * time.Second)
 
 		// sell
+		fmt.Print("\033[s") // save the cursor position
 		for {
 			currentPrice, err := GetPrice(client, ticker)
 			if err != nil {
 				log.Printf("Error getting current price: %s\n", err)
 				continue
 			}
+			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
 			log.Printf("%s PRICE is %.8f %s\n", scoin, currentPrice, dcoin)
 			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
 			if err != nil {
