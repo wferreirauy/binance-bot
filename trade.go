@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	color "github.com/fatih/color"
 )
 
-var Reset = "\033[0m"
-var Red = "\033[31m"
-var Green = "\033[32m"
-var Yellow = "\033[33m"
-var Blue = "\033[34m"
-var Magenta = "\033[35m"
-var Cyan = "\033[36m"
-var Gray = "\033[37m"
-var White = "\033[97m"
+var red = color.New(color.FgRed, color.Bold).SprintFunc()
+var green = color.New(color.FgGreen, color.Bold).SprintFunc()
 
 func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round int) (interface{}, error) {
 	buyPrice := toFixed(basePrice*buyFactor, round)
@@ -25,8 +20,8 @@ func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round int) (inte
 		log.Fatal("ticker malformed, / is missing ")
 	}
 
-	fmt.Printf("%sBUY%s %f %s - PRICE: %.8f - Total %s: %f\n",
-		Green, Reset, qty, scoin, buyPrice, dcoin, total)
+	fmt.Printf("%s %f %s - PRICE: %.8f - Total %s: %f\n",
+		green("BUY"), qty, scoin, buyPrice, dcoin, total)
 
 	order, err := NewOrder(tick, "BUY", qty, buyPrice)
 	if err != nil {
@@ -44,8 +39,8 @@ func TradeSell(ticker string, qty, basePrice, sellFactor float64, round int) (in
 		log.Fatal("ticker malformed, / is missing ")
 	}
 
-	fmt.Printf("%sSELL%s %f %s - PRICE: %.8f - Total %s: %f\n",
-		Red, Reset, qty, scoin, sellPrice, dcoin, total)
+	fmt.Printf("%s %f %s - PRICE: %.8f - Total %s: %f\n",
+		red("SELL"), qty, scoin, sellPrice, dcoin, total)
 
 	order, err := NewOrder(tick, "SELL", qty, sellPrice)
 	if err != nil {

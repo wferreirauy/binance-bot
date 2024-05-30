@@ -13,11 +13,10 @@ import (
 	color "github.com/fatih/color"
 )
 
-var cyan = color.New(color.FgCyan, color.Bold).SprintFunc()
-var red = color.New(color.FgRed, color.Bold).SprintFunc()
-var green = color.New(color.FgGreen, color.Bold).SprintFunc()
-
 func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops int) {
+	cyan := color.New(color.FgCyan, color.Bold).SprintFunc()
+	red := color.New(color.FgRed, color.Bold).SprintFunc()
+	green := color.New(color.FgGreen, color.Bold).SprintFunc()
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
@@ -56,7 +55,8 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
 			rsi := calculateRSI(historicalPrices, period)
 
-			if rsi < 70 && ema[len(ema)-1] > sma[len(sma)-1] && ema[len(ema)-2] <= sma[len(sma)-2] && lastMacd > lastSignal {
+			if rsi < 70 && ema[len(ema)-1] > sma[len(sma)-1] &&
+				ema[len(ema)-2] <= sma[len(sma)-2] && lastMacd > lastSignal {
 				log.Printf("Creating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
