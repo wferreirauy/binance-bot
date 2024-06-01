@@ -75,8 +75,8 @@ func main() {
 				},
 				Action: func(cCtx *cli.Context) error {
 					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("buy-factor"),
-						cCtx.Float64("sell-factor"), cCtx.Int("round-price"), cCtx.Int("round-amount"),
-						cCtx.Int("operations"))
+						cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
+						cCtx.Uint("operations"))
 					return nil
 				},
 			},

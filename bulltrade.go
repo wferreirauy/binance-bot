@@ -13,14 +13,14 @@ import (
 	color "github.com/fatih/color"
 )
 
-func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops int) {
+func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops uint) {
 	cyan := color.New(color.FgCyan, color.Bold).SprintFunc()
 	red := color.New(color.FgRed, color.Bold).SprintFunc()
 	green := color.New(color.FgGreen, color.Bold).SprintFunc()
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
-	period := 26 // period for moving average
+	period := 9 // period for moving average
 
 	// parse symbol
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
@@ -37,27 +37,28 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 	operation := 0
 	for range max_ops {
 		fmt.Println("Operation", cyan("#"+strconv.Itoa(operation)))
-		qty = toFixed(qty, roundAmount)
+		qty = roundFloat(qty, roundAmount)
 
 		// buy
 		fmt.Print("\033[s") // save the cursor position
 		for {
-			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
+			historicalPrices, err := getHistoricalPrices(client, ticker, period*2)
 			if err != nil {
 				log.Printf("Error getting historical prices: %v\n", err)
 				continue
 			}
 			price := historicalPrices[len(historicalPrices)-1]
 			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
-			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
+			log.Printf("%s PRICE is %.8f %s ", scoin, price, dcoin)
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
-			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
+			//lastMacd, lastSignal, macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
 			rsi := calculateRSI(historicalPrices, period)
 
-			if rsi < 70 && ema[len(ema)-1] > sma[len(sma)-1] &&
-				ema[len(ema)-2] <= sma[len(sma)-2] && lastMacd > lastSignal {
-				log.Printf("Creating new %s order\n", green("BUY"))
+			if rsi < 70 &&
+				ema[len(ema)-1] > sma[len(sma)-1] &&
+				ema[len(ema)-2] <= sma[len(sma)-2] {
+				log.Printf("\nCreating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating BUY order: %s\n", err)
@@ -100,13 +101,15 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			}
 			price := historicalPrices[len(historicalPrices)-1]
 			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
-			log.Printf("%s PRICE is %.8f %s\n", scoin, price, dcoin)
+			log.Printf("%s PRICE is %.8f %s ", scoin, price, dcoin)
 			sma := calculateSMA(historicalPrices, period)
 			ema := calculateEMA(historicalPrices, period)
-			lastMacd, lastSignal, _, _ := calculateMACD(historicalPrices, 12, 26, 9)
-			if ema[len(ema)-1] < sma[len(sma)-1] && ema[len(ema)-2] >= sma[len(sma)-2] && lastMacd < lastSignal && price > buyPrice {
-				log.Printf("Creating new %s order\n", red("SELL"))
-				sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
+			//lastMacd, lastSignal, macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
+			if ema[len(ema)-1] < sma[len(sma)-1] &&
+				ema[len(ema)-2] >= sma[len(sma)-2] &&
+				price > buyPrice {
+				log.Printf("\nCreating new %s order\n", red("SELL"))
+				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order: %s\n", err)
 				}

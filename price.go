@@ -26,6 +26,44 @@ func GetPrice(client *binance_connector.Client, symbol string) (float64, error) 
 	return 0.0, fmt.Errorf("price: could not get price: %w", err)
 }
 
+// Get Historical Prices for a period
+func getHistoricalPrices(client *binance_connector.Client, symbol string, period int) ([]float64, error) {
+	klines, err := client.NewKlinesService().Symbol(symbol).
+		Interval("1m").
+		Limit(period).
+		Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	var prices []float64
+	for _, k := range klines {
+		price, err := strconv.ParseFloat(k.Close, 64)
+		if err != nil {
+			return nil, err
+		}
+		prices = append(prices, price)
+	}
+	return prices, nil
+}
+
+// RSI
+func calculateRSI(prices []float64, period int) float64 {
+	var gains, losses float64
+	for i := 1; i < len(prices); i++ {
+		change := prices[i] - prices[i-1]
+		if change > 0 {
+			gains += change
+		} else {
+			losses -= change
+		}
+	}
+	avgGain := gains / float64(period)
+	avgLoss := losses / float64(period)
+	rs := avgGain / avgLoss
+	return 100 - (100 / (1 + rs))
+}
+
 // SMA
 func calculateSMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
@@ -57,21 +95,21 @@ func calculateEMA(prices []float64, period int) []float64 {
 	return ema
 }
 
-// RSI
-func calculateRSI(prices []float64, period int) float64 {
-	var gains, losses float64
-	for i := 1; i < len(prices); i++ {
-		change := prices[i] - prices[i-1]
-		if change > 0 {
-			gains += change
-		} else {
-			losses -= change
-		}
+// DEMA
+func calculateDEMA(prices []float64, period int) []float64 {
+	if len(prices) < period {
+		return []float64{}
 	}
-	avgGain := gains / float64(period)
-	avgLoss := losses / float64(period)
-	rs := avgGain / avgLoss
-	return 100 - (100 / (1 + rs))
+
+	ema1 := calculateEMA(prices, period)
+	ema2 := calculateEMA(ema1, period)
+
+	dema := make([]float64, len(prices))
+	for i := range prices {
+		dema[i] = 2*ema1[i] - ema2[i]
+	}
+
+	return dema
 }
 
 // MACD
@@ -87,25 +125,4 @@ func calculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) (
 	signalLine := calculateEMA(macdLine, signalPeriod)
 
 	return macdLine[len(macdLine)-1], signalLine[len(signalLine)-1], macdLine, signalLine
-}
-
-// Get Historical Prices for a period
-func getHistoricalPrices(client *binance_connector.Client, symbol string, period int) ([]float64, error) {
-	klines, err := client.NewKlinesService().Symbol(symbol).
-		Interval("1m").
-		Limit(period).
-		Do(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	var prices []float64
-	for _, k := range klines {
-		price, err := strconv.ParseFloat(k.Close, 64)
-		if err != nil {
-			return nil, err
-		}
-		prices = append(prices, price)
-	}
-	return prices, nil
 }

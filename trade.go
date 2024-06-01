@@ -11,8 +11,8 @@ import (
 var red = color.New(color.FgRed, color.Bold).SprintFunc()
 var green = color.New(color.FgGreen, color.Bold).SprintFunc()
 
-func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round int) (interface{}, error) {
-	buyPrice := toFixed(basePrice*buyFactor, round)
+func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round uint) (interface{}, error) {
+	buyPrice := roundFloat(basePrice*buyFactor, round)
 	total := buyPrice * qty
 	tick := strings.Replace(ticker, "/", "", -1)
 	scoin, dcoin, found := strings.Cut(ticker, "/")
@@ -30,8 +30,8 @@ func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round int) (inte
 	return order, nil
 }
 
-func TradeSell(ticker string, qty, basePrice, sellFactor float64, round int) (interface{}, error) {
-	sellPrice := toFixed(basePrice*sellFactor, round)
+func TradeSell(ticker string, qty, basePrice, sellFactor float64, round uint) (interface{}, error) {
+	sellPrice := roundFloat(basePrice*sellFactor, round)
 	total := sellPrice * qty
 	tick := strings.Replace(ticker, "/", "", -1)
 	scoin, dcoin, found := strings.Cut(ticker, "/")
