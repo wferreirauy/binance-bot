@@ -14,13 +14,15 @@ import (
 )
 
 func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops uint) {
-	cyan := color.New(color.FgCyan, color.Bold).SprintFunc()
-	red := color.New(color.FgRed, color.Bold).SprintFunc()
-	green := color.New(color.FgGreen, color.Bold).SprintFunc()
+	cyan := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	red := color.New(color.FgHiRed, color.Bold).SprintFunc()
+	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
+	yellow := color.New(color.FgHiYellow, color.Bold).SprintFunc()
+	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
-	period := 9 // period for moving average
+	period := 26 // period for moving average
 
 	// parse symbol
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
@@ -48,16 +50,22 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 				continue
 			}
 			price := historicalPrices[len(historicalPrices)-1]
+			prevPrice := historicalPrices[len(historicalPrices)-2]
 			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
-			log.Printf("%s PRICE is %.8f %s ", scoin, price, dcoin)
-			sma := calculateSMA(historicalPrices, period)
-			ema := calculateEMA(historicalPrices, period)
-			//lastMacd, lastSignal, macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
+			switch {
+			case price < prevPrice:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), red(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			case price > prevPrice:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), green(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			default:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), white(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			}
+			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
 			rsi := calculateRSI(historicalPrices, period)
 
 			if rsi < 70 &&
-				ema[len(ema)-1] > sma[len(sma)-1] &&
-				ema[len(ema)-2] <= sma[len(sma)-2] {
+				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
+				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
 				log.Printf("\nCreating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
@@ -86,7 +94,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 				}
 				break // indicators conditions meet
 			}
-			time.Sleep(20 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 
 		time.Sleep(30 * time.Second)
@@ -102,12 +110,40 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			price := historicalPrices[len(historicalPrices)-1]
 			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
 			log.Printf("%s PRICE is %.8f %s ", scoin, price, dcoin)
-			sma := calculateSMA(historicalPrices, period)
-			ema := calculateEMA(historicalPrices, period)
-			//lastMacd, lastSignal, macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
-			if ema[len(ema)-1] < sma[len(sma)-1] &&
-				ema[len(ema)-2] >= sma[len(sma)-2] &&
-				price > buyPrice {
+
+			// stop loss
+			stopLossPercentage := 2.0
+			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
+			if price <= stopLossPrice {
+				log.Printf("\nCreating new Stop-Loss %s order\n", red("SELL"))
+				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
+				if err != nil {
+					log.Fatalf("error creating Stop-Loss SELL order: %s\n", err)
+				}
+				sellOrder := reflect.ValueOf(sell).Elem()
+				orderId := sellOrder.FieldByName("OrderId").Int()
+				if getor, err := GetOrder(ticker, orderId); err == nil {
+					log.Printf("Stop-Loss SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+				}
+				for { // looking at sell order until FILLED
+					if getor, err := GetOrder(ticker, orderId); err == nil {
+						if getor.Status == "FILLED" {
+							log.Printf("Stop-Loss SELL order filled!\n\n")
+							break // sell filled
+						}
+					}
+					time.Sleep(10 * time.Second) // 10 secs to take another look
+				}
+				break // stop loss order sold
+			}
+
+			// take profit
+			profitPercentage := 1.5
+			profitPrice := buyPrice * (1 + profitPercentage/100)
+			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
+			if price >= profitPrice &&
+				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
+				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] {
 				log.Printf("\nCreating new %s order\n", red("SELL"))
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
@@ -127,9 +163,9 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 					}
 					time.Sleep(10 * time.Second) // 10 secs to take another look
 				}
-				break // indicators conditions meet
+				break // take profit order sold
 			}
-			time.Sleep(20 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 		operation++
 		time.Sleep(1 * time.Minute) // 1 minute to start next operation

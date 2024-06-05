@@ -84,7 +84,10 @@ func calculateSMA(prices []float64, period int) []float64 {
 }
 
 // EMA
-func calculateEMA(prices []float64, period int) []float64 {
+func calculateEMA(prices []float64, period int) ([]float64, error) {
+	if len(prices) < period {
+		return []float64{}, fmt.Errorf("calculateEMA: error, number of prices is less than the defined period")
+	}
 	multiplier := 2.0 / float64(period+1) // 0.0952381
 	ema := make([]float64, len(prices))
 	ema[0] = prices[0]
@@ -92,7 +95,8 @@ func calculateEMA(prices []float64, period int) []float64 {
 	for i := 1; i < len(prices); i++ {
 		ema[i] = ((prices[i] - ema[i-1]) * multiplier) + ema[i-1]
 	}
-	return ema
+
+	return ema, nil
 }
 
 // DEMA
@@ -101,8 +105,8 @@ func calculateDEMA(prices []float64, period int) []float64 {
 		return []float64{}
 	}
 
-	ema1 := calculateEMA(prices, period)
-	ema2 := calculateEMA(ema1, period)
+	ema1, _ := calculateEMA(prices, period)
+	ema2, _ := calculateEMA(ema1, period)
 
 	dema := make([]float64, len(prices))
 	for i := range prices {
@@ -113,16 +117,43 @@ func calculateDEMA(prices []float64, period int) []float64 {
 }
 
 // MACD
-func calculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) (float64, float64, []float64, []float64) {
-	fastEMA := calculateEMA(prices, fastPeriod)
-	slowEMA := calculateEMA(prices, slowPeriod)
+func calculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) ([]float64, []float64) {
+	fastEMA, _ := calculateEMA(prices, fastPeriod)
+	slowEMA, _ := calculateEMA(prices, slowPeriod)
 
 	macdLine := make([]float64, len(prices))
 	for i := 0; i < len(prices); i++ {
 		macdLine[i] = fastEMA[i] - slowEMA[i]
 	}
 
-	signalLine := calculateEMA(macdLine, signalPeriod)
+	signalLine, _ := calculateEMA(macdLine, signalPeriod)
 
-	return macdLine[len(macdLine)-1], signalLine[len(signalLine)-1], macdLine, signalLine
+	return macdLine, signalLine
 }
+
+// stop-loss
+/* func stopLoss(client *binance_connector.Client, symbol string, initialPrice, stopLossPercentage, qty float64,
+	roundPrice uint) {
+	stopLossPrice := initialPrice * (1 - stopLossPercentage/100)
+	for {
+		currentPrice, err := GetPrice(client, symbol)
+		if err != nil {
+			log.Println("stopLoss: unable to get the current price")
+			continue
+		}
+		if currentPrice <= stopLossPrice {
+			log.Printf("\nCreating new %s order\n", red("SELL"))
+			sell, err := TradeSell(symbol, qty, currentPrice, 1, roundPrice)
+			if err != nil {
+				log.Fatalf("error creating SELL order: %s\n", err)
+			}
+			sellOrder := reflect.ValueOf(sell).Elem()
+			orderId := sellOrder.FieldByName("OrderId").Int()
+			if getor, err := GetOrder(symbol, orderId); err == nil {
+				log.Printf("SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+			}
+			break
+		}
+		time.Sleep(10 * time.Second)
+	}
+} */
