@@ -22,7 +22,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
-	period := 26 // period for moving average
+	period := 100 // period for moving average
 
 	// parse symbol
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
@@ -44,7 +44,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		// buy
 		fmt.Print("\033[s") // save the cursor position
 		for {
-			historicalPrices, err := getHistoricalPrices(client, ticker, period*2)
+			historicalPrices, err := getHistoricalPrices(client, ticker, period)
 			if err != nil {
 				log.Printf("Error getting historical prices: %v\n", err)
 				continue
@@ -60,13 +60,18 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			default:
 				log.Printf("%s PRICE is %s %s ", yellow(scoin), white(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
 			}
+			ema, err := calculateEMA(historicalPrices, period)
+			if err != nil {
+				log.Printf("calculateEma: %s", err)
+				continue
+			}
 			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
-			rsi := calculateRSI(historicalPrices, period)
+			rsi := calculateRSI(historicalPrices, 14)
 
-			if rsi < 70 &&
+			if price > ema[len(ema)-1] && rsi < 70 &&
 				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
-				log.Printf("\nCreating new %s order\n", green("BUY"))
+				log.Printf("Creating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating BUY order: %s\n", err)
@@ -102,20 +107,28 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 		// sell
 		fmt.Print("\033[s") // save the cursor position
 		for {
-			historicalPrices, err := getHistoricalPrices(client, ticker, period+26)
+			historicalPrices, err := getHistoricalPrices(client, ticker, period)
 			if err != nil {
 				log.Printf("Error getting historical prices: %v\n", err)
 				continue
 			}
 			price := historicalPrices[len(historicalPrices)-1]
+			prevPrice := historicalPrices[len(historicalPrices)-2]
 			fmt.Print("\033[u\033[K") // restore the cursor position and clear the line
-			log.Printf("%s PRICE is %.8f %s ", scoin, price, dcoin)
+			switch {
+			case price < prevPrice:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), red(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			case price > prevPrice:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), green(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			default:
+				log.Printf("%s PRICE is %s %s ", yellow(scoin), white(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
+			}
 
 			// stop loss
-			stopLossPercentage := 2.0
+			stopLossPercentage := 3.0
 			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
 			if price <= stopLossPrice {
-				log.Printf("\nCreating new Stop-Loss %s order\n", red("SELL"))
+				log.Printf("Creating new Stop-Loss %s order\n", red("SELL"))
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating Stop-Loss SELL order: %s\n", err)
@@ -123,7 +136,8 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 				sellOrder := reflect.ValueOf(sell).Elem()
 				orderId := sellOrder.FieldByName("OrderId").Int()
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					log.Printf("Stop-Loss SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
+					log.Printf("%s order created. Id: %d - Status: %s\n",
+						red("STOP-LOSS SELL"), getor.OrderId, getor.Status)
 				}
 				for { // looking at sell order until FILLED
 					if getor, err := GetOrder(ticker, orderId); err == nil {
@@ -138,7 +152,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			}
 
 			// take profit
-			profitPercentage := 1.5
+			profitPercentage := 1.0
 			profitPrice := buyPrice * (1 + profitPercentage/100)
 			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
 			if price >= profitPrice &&

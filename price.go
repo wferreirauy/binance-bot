@@ -86,7 +86,7 @@ func calculateSMA(prices []float64, period int) []float64 {
 // EMA
 func calculateEMA(prices []float64, period int) ([]float64, error) {
 	if len(prices) < period {
-		return []float64{}, fmt.Errorf("calculateEMA: error, number of prices is less than the defined period")
+		return []float64{}, fmt.Errorf("number of prices is less than the defined period")
 	}
 	multiplier := 2.0 / float64(period+1) // 0.0952381
 	ema := make([]float64, len(prices))
