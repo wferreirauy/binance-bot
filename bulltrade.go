@@ -13,7 +13,9 @@ import (
 	color "github.com/fatih/color"
 )
 
-func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, roundAmount, max_ops uint) {
+func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor float64,
+	roundPrice, roundAmount, max_ops uint) {
+
 	cyan := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 	red := color.New(color.FgHiRed, color.Bold).SprintFunc()
 	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
@@ -125,7 +127,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			}
 
 			// stop loss
-			stopLossPercentage := 3.0
+			stopLossPercentage := stopLoss
 			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
 			if price <= stopLossPrice {
 				log.Printf("Creating new Stop-Loss %s order\n", red("SELL"))
@@ -152,7 +154,7 @@ func BullTrade(symbol string, qty, buyFactor, sellFactor float64, roundPrice, ro
 			}
 
 			// take profit
-			profitPercentage := 1.0
+			profitPercentage := takeProfit
 			profitPrice := buyPrice * (1 + profitPercentage/100)
 			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
 			if price >= profitPrice &&

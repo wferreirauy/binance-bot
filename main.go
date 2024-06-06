@@ -32,7 +32,7 @@ func main() {
 		UsageText:            "binance-bot [global options] command <command args>",
 		EnableBashCompletion: true,
 		Commands: []*cli.Command{
-			&cli.Command{
+			{
 				Name:    "bull-trade",
 				Usage:   "Start a bull trade run",
 				Aliases: []string{"bt"},
@@ -48,13 +48,27 @@ func main() {
 						Aliases: []string{"a"},
 					},
 					&cli.Float64Flag{
+						Name:    "stop-loss",
+						Usage:   "Stop-Loss percentage float, eg. 3.0",
+						Value:   3.0,
+						Aliases: []string{"sl"},
+					},
+					&cli.Float64Flag{
+						Name:    "take-profit",
+						Usage:   "Take profit percentage float, eg. 2.5",
+						Value:   2.5,
+						Aliases: []string{"tp"},
+					},
+					&cli.Float64Flag{
 						Name:    "buy-factor",
 						Usage:   "target factor for LIMIT buy",
+						Value:   0.9998,
 						Aliases: []string{"b"},
 					},
 					&cli.Float64Flag{
 						Name:    "sell-factor",
 						Usage:   "target factor for LIMIT sell",
+						Value:   1.0001,
 						Aliases: []string{"s"},
 					},
 					&cli.IntFlag{
@@ -70,12 +84,13 @@ func main() {
 					&cli.IntFlag{
 						Name:    "operations",
 						Usage:   "number of operations",
+						Value:   100,
 						Aliases: []string{"o"},
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("buy-factor"),
-						cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
+					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
 					return nil
 				},
