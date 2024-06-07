@@ -67,12 +67,15 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				log.Printf("calculateEma: %s", err)
 				continue
 			}
+			dema := calculateDEMA(historicalPrices, 9)
 			macdLine, signalLine := calculateMACD(historicalPrices, 12, 26, 9)
 			rsi := calculateRSI(historicalPrices, 14)
 
-			if price > ema[len(ema)-1] && rsi < 70 &&
+			// where to enter?
+			if price > ema[len(ema)-1] && rsi < 70 && // price is above EMA 100 and RSI below 70
+				dema[len(dema)-1] > ema[len(ema)-1] && // dema is above EMA 100
 				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
+				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] { // MACD crosses signal
 				log.Printf("Creating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
@@ -130,7 +133,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			stopLossPercentage := stopLoss
 			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
 			if price <= stopLossPrice {
-				log.Printf("Creating new Stop-Loss %s order\n", red("SELL"))
+				log.Printf("Creating new %s order\n", red("STOP-LOSS SELL"))
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating Stop-Loss SELL order: %s\n", err)
