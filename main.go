@@ -62,7 +62,7 @@ func main() {
 					&cli.Float64Flag{
 						Name:    "buy-factor",
 						Usage:   "target factor for LIMIT buy",
-						Value:   0.9998,
+						Value:   0.9999,
 						Aliases: []string{"b"},
 					},
 					&cli.Float64Flag{

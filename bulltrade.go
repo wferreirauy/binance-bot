@@ -40,7 +40,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 	operation := 0
 	for range max_ops {
-		fmt.Println("Operation", cyan("#"+strconv.Itoa(operation)))
+		fmt.Println(white("Operation"), cyan("#"+strconv.Itoa(operation)))
 		qty = roundFloat(qty, roundAmount)
 
 		// buy
@@ -76,7 +76,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				dema[len(dema)-1] > ema[len(ema)-1] && // dema is above EMA 100
 				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] { // MACD crosses signal
-				log.Printf("Creating new %s order\n", green("BUY"))
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating BUY order: %s\n", err)
@@ -133,7 +132,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			stopLossPercentage := stopLoss
 			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
 			if price <= stopLossPrice {
-				log.Printf("Creating new %s order\n", red("STOP-LOSS SELL"))
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating Stop-Loss SELL order: %s\n", err)
@@ -163,7 +161,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			if price >= profitPrice &&
 				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
 				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] {
-				log.Printf("\nCreating new %s order\n", red("SELL"))
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order: %s\n", err)
