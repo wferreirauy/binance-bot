@@ -27,9 +27,9 @@ func GetPrice(client *binance_connector.Client, symbol string) (float64, error) 
 }
 
 // Get Historical Prices for a period
-func getHistoricalPrices(client *binance_connector.Client, symbol string, period int) ([]float64, error) {
+func getHistoricalPrices(client *binance_connector.Client, symbol, interval string, period int) ([]float64, error) {
 	klines, err := client.NewKlinesService().Symbol(symbol).
-		Interval("1m").
+		Interval(interval).
 		Limit(period).
 		Do(context.Background())
 	if err != nil {
