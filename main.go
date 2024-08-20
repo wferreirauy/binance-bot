@@ -8,9 +8,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var apikey string = os.Getenv("BINANCE_API_KEY")
-var secretkey string = os.Getenv("BINANCE_SECRET_KEY")
-var baseurl string = "https://api1.binance.com"
+var (
+	apikey    string = os.Getenv("BINANCE_API_KEY")
+	secretkey string = os.Getenv("BINANCE_SECRET_KEY")
+	baseurl   string = "https://api1.binance.com"
+)
 
 func main() {
 	/* TODO

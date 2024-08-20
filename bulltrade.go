@@ -24,7 +24,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
-	period := 200 // period for moving average
+	period := 100 // period for moving average
 
 	// parse symbol
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
@@ -37,7 +37,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 	ticker := strings.Replace(symbol, "/", "", -1)
 
 	var buyPrice float64
-	var tendency string
 
 	operation := 0
 	for range max_ops {
@@ -48,22 +47,28 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 		fmt.Print("\033[s") // save the cursor position
 
 		for {
-			hp15m, err := getHistoricalPrices(client, ticker, "15m", 100)
-			ema15, _ := calculateEMA(hp15m, 100)
-			dema15 := calculateDEMA(hp15m, 9)
-			if dema15[len(dema15)-1] > ema15[len(ema15)-1] {
-				tendency = "up"
-			} else if dema15[len(dema15)-1] < ema15[len(ema15)-1] {
-				tendency = "down"
-			}
+			var tendency string
+			hp15m, err := getHistoricalPrices(client, ticker, "15m", period)
 			if err != nil {
 				log.Printf("Error getting historical prices with 15m interval: %v\n", err)
+				time.Sleep(10 * time.Second)
 				continue
+			}
+			dema15 := calculateDEMA(hp15m, 9)
+			if ema15, _ := calculateEMA(hp15m, 100); len(ema15) > 0 {
+				if dema15[len(dema15)-1] > ema15[len(ema15)-1] {
+					tendency = "up"
+				} else if dema15[len(dema15)-1] < ema15[len(ema15)-1] {
+					tendency = "down"
+				}
+			} else {
+				tendency = "up"
 			}
 
 			hp1m, err := getHistoricalPrices(client, ticker, "1m", period)
 			if err != nil {
 				log.Printf("Error getting historical prices with 1m interval: %v\n", err)
+				time.Sleep(10 * time.Second)
 				continue
 			}
 			price := hp1m[len(hp1m)-1]
@@ -77,18 +82,11 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			default:
 				log.Printf("%s PRICE is %s %s ", yellow(scoin), white(strconv.FormatFloat(price, 'f', int(roundPrice), 64)), dcoin)
 			}
-			ema, err := calculateEMA(hp1m, period)
-			if err != nil {
-				log.Printf("calculateEma: %s", err)
-				continue
-			}
-			dema := calculateDEMA(hp1m, 9)
 			macdLine, signalLine := calculateMACD(hp1m, 12, 26, 9)
 			rsi := calculateRSI(hp1m, 14)
 
 			// where to enter?
 			if rsi < 70 && // RSI below 70
-				dema[len(dema)-2] < ema[len(ema)-2] && dema[len(dema)-1] >= ema[len(ema)-1] && // 1m tendency is up
 				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] && // MACD crosses signal
 				tendency == "up" { // 15m tendency
@@ -128,21 +126,10 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 		// sell
 		fmt.Print("\033[s") // save the cursor position
 		for {
-			hp15m, err := getHistoricalPrices(client, ticker, "15m", period)
-			ema15, _ := calculateEMA(hp15m, 100)
-			dema15 := calculateDEMA(hp15m, 9)
-			if dema15[len(dema15)-1] > ema15[len(ema15)-1] {
-				tendency = "up"
-			} else if dema15[len(dema15)-1] < ema15[len(ema15)-1] {
-				tendency = "down"
-			}
-			if err != nil {
-				log.Printf("Error getting historical prices with 15m interval: %v\n", err)
-				continue
-			}
 			hp1m, err := getHistoricalPrices(client, ticker, "1m", period)
 			if err != nil {
 				log.Printf("Error getting historical prices with 1m interval: %v\n", err)
+				time.Sleep(10 * time.Second)
 				continue
 			}
 			price := hp1m[len(hp1m)-1]
@@ -161,7 +148,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			stopLossPercentage := stopLoss
 			stopLossPrice := buyPrice * (1 - stopLossPercentage/100)
 			if price <= stopLossPrice { // price reach stop-loss percentage
-				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
+				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, 1.0, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating Stop-Loss SELL order: %s\n", err)
 				}
@@ -189,8 +176,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			macdLine, signalLine := calculateMACD(hp1m, 12, 26, 9)
 			if price >= profitPrice && // price reach take profit percentage
 				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] && // MACD crosess signal
-				tendency == "down" { // 15m tendency
+				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] { // MACD crosess signal
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order: %s\n", err)
