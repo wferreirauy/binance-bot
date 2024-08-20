@@ -1,6 +1,6 @@
 module main
 
-go 1.22.3
+go 1.23.0
 
 require (
 	github.com/binance/binance-connector-go v0.5.2
