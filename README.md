@@ -120,41 +120,6 @@ Modify these parameters based on your specific trading requirements.
      --help, -h                        show help
   ```
 
-### Build
-
-To build the `binance-bot` from the source code, ensure you have the following prerequisites installed:
-
-#### **Prerequisites**
-1. **Go (Golang):**  
-   - Install Go from the [official website](https://go.dev/).  
-   - Ensure your Go version is at least **1.19** by running:  
-     ```bash
-     go version
-     ```
-
-2. **Git:**  
-   - Clone the repository using Git. Install Git from [here](https://git-scm.com/) if you don't already have it.
-
-#### **Steps to Build**
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/wferreirauy/binance-bot.git
-   cd binance-bot
-   ```
-
-2. Build the project:
-   ```bash
-   go build -o binance-bot
-   ```
-
-3. Verify the executable:
-   ```bash
-   ./binance-bot --help
-   ```
-
-If the build succeeds, you should see the general help menu displayed, indicating that the bot has been built successfully.
-
 ---
 
 ## Trading Strategy Logic
@@ -188,6 +153,61 @@ The bot will place a sell order when these conditions are met
 This strategy combines momentum indicators, trend confirmation, and predefined risk/reward factors to maximize trading opportunities during bull market conditions. However, the strategy is not designed to handle bearish or flat market trends and may result in losses under such conditions.
 
 ⚠️ **Note:** Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
+
+---
+
+## Download
+
+#### **Download Precompiled Binary**
+
+You can **download the precompiled binary** from the repository's release artifacts.
+
+1. Visit the [Releases](https://github.com/wferreirauy/binance-bot/releases) page of the repository.  
+2. Download the appropriate binary for your operating system (e.g., Linux, macOS, Windows).  
+3. Make the binary executable (if required):  
+   - On Linux or macOS:  
+     ```bash
+     chmod +x binance-bot
+     ```
+4. Move the binary to a directory in your `$PATH` for global access:
+   - On Linux
+   ```bash
+   sudo mv binance-bot /usr/local/bin/
+
+## Build from Source
+
+To build the `binance-bot` from the source code, ensure you have the following prerequisites installed:
+
+#### **Prerequisites**
+1. **Go (Golang):**  
+   - Install Go from the [official website](https://go.dev/).  
+   - Ensure your Go version is at least **1.19** by running:  
+     ```bash
+     go version
+     ```
+
+2. **Git:**  
+   - Clone the repository using Git. Install Git from [here](https://git-scm.com/) if you don't already have it.
+
+#### **Steps to Build**
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/wferreirauy/binance-bot.git
+   cd binance-bot
+   ```
+
+2. Build the project:
+   ```bash
+   go build -o binance-bot
+   ```
+
+3. Verify the executable:
+   ```bash
+   ./binance-bot --help
+   ```
+
+If the build succeeds, you should see the general help menu displayed, indicating that the bot has been built successfully.
 
 ## References
 
