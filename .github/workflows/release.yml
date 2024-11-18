@@ -1,0 +1,38 @@
+name: Release
+run-name: Release ${{ github.ref }}
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+          with:
+            go-version: "1.23.3"
+      
+      - name: Ron goreleaser
+        uses: actions/goreleaser/goreleaser-action@v5
+          with:
+            version: latest
+            args: release --clean
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload release assests
+        uses: actions/upload-artifact@v4
+          with:
+            name: release-assests
+            path: dist/*
