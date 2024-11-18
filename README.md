@@ -5,7 +5,7 @@
 
 ## Usage
 
-⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet or small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
+⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
 
 ---
 
@@ -13,13 +13,13 @@
 
 Before using the Binance Trade Bot, you need to configure your environment with the Binance API client credentials. These credentials allow the bot to interact securely with your Binance account. Follow these steps to set up:
 
-1. **Obtain your Binance API Key and Secret**  
-   - Log in to your [Binance account](https://www.binance.com/).  
-   - Navigate to the API Management section.  
-   - Create a new API key, providing a label for it (e.g., `CLI_Bot`).  
+1. **Obtain your Binance API Key and Secret**
+   - Log in to your [Binance account](https://www.binance.com/).
+   - Navigate to the API Management section.
+   - Create a new API key, providing a label for it (e.g., `CLI_Bot`).
    - Save the **API Key** and **Secret Key** securely. You will not be able to view the secret again after closing the page.
 
-2. **Set Environment Variables**  
+2. **Set Environment Variables**
    Export the API credentials as environment variables in your terminal before executing the binance-bot cli:
 
    ```bash
@@ -55,12 +55,12 @@ Modify these parameters based on your specific trading requirements.
 |----------------------|-------|---------------------------------------------------------------------------------------------|---------------|
 | `--ticker`           | `-t`  | The trading pair ticker in the format `ABC/USD` (e.g., `BTC/USDT`).                         | **Required**  |
 | `--amount`           | `-a`  | Amount to trade.                                                                            | `0`           |
-| `--stop-loss`        | `--sl`| Stop-loss percentage (e.g., `1.5` for 1.5%).                                                | `3`           |
-| `--take-profit`      | `--tp`| Take-profit percentage (e.g., `3.0` for 3%).                                                | `2.5`         |
+| `--stop-loss`        | `-sl` | Stop-loss percentage (e.g., `1.5` for 1.5%).                                                | `3`           |
+| `--take-profit`      | `-tp` | Take-profit percentage (e.g., `3.0` for 3%).                                                | `2.5`         |
 | `--buy-factor`       | `-b`  | Factor to determine the target price for a LIMIT buy order.                                 | `0.9999`      |
 | `--sell-factor`      | `-s`  | Factor to determine the target price for a LIMIT sell order.                                | `1.0001`      |
-| `--round-price`      | `--rp`| Decimal precision for rounding price values.                                                | `0`           |
-| `--round-amount`     | `--ra`| Decimal precision for rounding amount values.                                               | `0`           |
+| `--round-price`      | `--p` | Decimal precision for rounding price values.                                                | `0`           |
+| `--round-amount`     | `-ra` | Decimal precision for rounding amount values.                                               | `0`           |
 | `--operations`       | `-o`  | Number of operations to execute during the trading session.                                 | `100`         |
 | `--help`             | `-h`  | Show help for the `bull-trade` command.                                                     | -             |
 
@@ -110,12 +110,12 @@ Modify these parameters based on your specific trading requirements.
   OPTIONS:
      --ticker value, -t value          ticker to trade, format ABC/USD eg. BTC/USDT
      --amount value, -a value          how much to trade (default: 0)
-     --stop-loss value, --sl value     Stop-Loss percentage float, eg. 3.0 (default: 3)
-     --take-profit value, --tp value   Take profit percentage float, eg. 2.5 (default: 2.5)
+     --stop-loss value, -sl value     Stop-Loss percentage float, eg. 3.0 (default: 3)
+     --take-profit value, -tp value   Take profit percentage float, eg. 2.5 (default: 2.5)
      --buy-factor value, -b value      target factor for LIMIT buy (default: 0.9999)
      --sell-factor value, -s value     target factor for LIMIT sell (default: 1.0001)
-     --round-price value, --rp value   price decimals round (default: 0)
-     --round-amount value, --ra value  amount decimals round (default: 0)
+     --round-price value, -rp value   price decimals round (default: 0)
+     --round-amount value, -ra value  amount decimals round (default: 0)
      --operations value, -o value      number of operations (default: 100)
      --help, -h                        show help
   ```
@@ -131,13 +131,13 @@ The `bull-trade` command is specifically designed to operate during **bull marke
 
 #### **Buy Conditions**
 The bot will place a buy order when these conditions are met
-1. **Relative Strength Index (RSI)**:  
+1. **Relative Strength Index (RSI)**:
    - The RSI value must be **less than 70**, indicating that the market is not overbought.
 
-2. **MACD Crossover**:  
+2. **MACD Crossover**:
    - A buy signal is generated when the **MACD line crosses above the Signal line**, suggesting upward momentum.
 
-3. **DEMA & EMA Confirmation**:  
+3. **DEMA & EMA Confirmation**:
    - The market is considered to have an upward trend when the **15-period Double Exponential Moving Average (DEMA)** is **above** the **15-period Exponential Moving Average (EMA)**.
 
 #### **Sell Conditions**
@@ -145,7 +145,7 @@ The bot will place a sell order when these conditions are met
 1. **Take Profit Factor**:
     - The price reaches the **take-profit percentage** specified in the command.
     - The **MACD line crosses below the Signal line**, indicating potential downward momentum.
-2. **Stop Loss Factor**:  
+2. **Stop Loss Factor**:
    - The price drops to the **stop-loss percentage** specified in the command.
 
 ---
@@ -162,10 +162,10 @@ This strategy combines momentum indicators, trend confirmation, and predefined r
 
 You can **download the precompiled binary** from the repository's release artifacts.
 
-1. Visit the [Releases](https://github.com/wferreirauy/binance-bot/releases) page of the repository.  
-2. Download the appropriate binary for your operating system (e.g., Linux, macOS, Windows).  
-3. Make the binary executable (if required):  
-   - On Linux or macOS:  
+1. Visit the [Releases](https://github.com/wferreirauy/binance-bot/releases) page of the repository.
+2. Download the appropriate binary for your operating system (e.g., Linux, macOS, Windows).
+3. Make the binary executable (if required):
+   - On Linux or macOS:
      ```bash
      chmod +x binance-bot
      ```
@@ -179,14 +179,14 @@ You can **download the precompiled binary** from the repository's release artifa
 To build the `binance-bot` from the source code, ensure you have the following prerequisites installed:
 
 #### **Prerequisites**
-1. **Go (Golang):**  
-   - Install Go from the [official website](https://go.dev/).  
-   - Ensure your Go version is at least **1.19** by running:  
+1. **Go (Golang):**
+   - Install Go from the [official website](https://go.dev/).
+   - Ensure your Go version is at least **1.19** by running:
      ```bash
      go version
      ```
 
-2. **Git:**  
+2. **Git:**
    - Clone the repository using Git. Install Git from [here](https://git-scm.com/) if you don't already have it.
 
 #### **Steps to Build**
