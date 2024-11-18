@@ -120,13 +120,49 @@ Modify these parameters based on your specific trading requirements.
      --help, -h                        show help
   ```
 
+### Build
+
+To build the `binance-bot` from the source code, ensure you have the following prerequisites installed:
+
+#### **Prerequisites**
+1. **Go (Golang):**  
+   - Install Go from the [official website](https://go.dev/).  
+   - Ensure your Go version is at least **1.19** by running:  
+     ```bash
+     go version
+     ```
+
+2. **Git:**  
+   - Clone the repository using Git. Install Git from [here](https://git-scm.com/) if you don't already have it.
+
+#### **Steps to Build**
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/wferreirauy/binance-bot.git
+   cd binance-bot
+   ```
+
+2. Build the project:
+   ```bash
+   go build -o binance-bot
+   ```
+
+3. Verify the executable:
+   ```bash
+   ./binance-bot --help
+   ```
+
+If the build succeeds, you should see the general help menu displayed, indicating that the bot has been built successfully.
+
+---
+
 ## Trading Strategy Logic
 
 ### Bull-Trade
 
 The `bull-trade` command is specifically designed to operate during **bull market trends**, leveraging upward momentum to execute profitable trades. It is optimized for market conditions where prices are generally increasing, making it less effective during bearish or sideways markets.
 
----
 
 #### **Buy Conditions**
 The bot will place a buy order when these conditions are met
@@ -138,8 +174,6 @@ The bot will place a buy order when these conditions are met
 
 3. **DEMA & EMA Confirmation**:  
    - The market is considered to have an upward trend when the **15-period Double Exponential Moving Average (DEMA)** is **above** the **15-period Exponential Moving Average (EMA)**.
-
----
 
 #### **Sell Conditions**
 The bot will place a sell order when these conditions are met
