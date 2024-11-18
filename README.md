@@ -2,6 +2,9 @@
 
 ## Usage
 
+![Captura desde 2024-11-18 00-51-42](https://github.com/user-attachments/assets/50f62e72-7cda-45a9-844c-88b70dbbd772)
+
+
 Run `binance-bot --help` for general help.
 
 ```
@@ -38,13 +41,18 @@ USAGE:
 OPTIONS:
    --ticker value, -t value          ticker to trade, format ABC/USD eg. BTC/USDT
    --amount value, -a value          how much to trade (default: 0)
-   --buy-factor value, -b value      target factor for LIMIT buy (default: 0)
-   --sell-factor value, -s value     target factor for LIMIT sell (default: 0)
+   --stop-loss value, --sl value     Stop-Loss percentage float, eg. 3.0 (default: 3)
+   --take-profit value, --tp value   Take profit percentage float, eg. 2.5 (default: 2.5)
+   --buy-factor value, -b value      target factor for LIMIT buy (default: 0.9999)
+   --sell-factor value, -s value     target factor for LIMIT sell (default: 1.0001)
    --round-price value, --rp value   price decimals round (default: 0)
    --round-amount value, --ra value  price decimals round (default: 0)
-   --operations value, -o value      number of operations (default: 0)
+   --operations value, -o value      number of operations (default: 100)
    --help, -h                        show help
 ```
+
+
+
 
 ## References
 
