@@ -7,7 +7,7 @@
 
 ### Prerequisites
 
-Before using the Binance CLI bot, you need to configure your environment with the Binance API client credentials. These credentials allow the bot to interact securely with your Binance account. Follow these steps to set up:
+Before using the Binance Trade Bot, you need to configure your environment with the Binance API client credentials. These credentials allow the bot to interact securely with your Binance account. Follow these steps to set up:
 
 1. **Obtain your Binance API Key and Secret**  
    - Log in to your [Binance account](https://www.binance.com/).  
@@ -23,7 +23,7 @@ Before using the Binance CLI bot, you need to configure your environment with th
    export BINANCE_API_SECRET=<your-secret-key>
    ```
 
-Now you're ready to use the Binance CLI bot! 🎉
+Now you're ready to use the Binance Trade Bot! 🎉
 
 ### Run the Bot
 
