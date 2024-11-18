@@ -37,6 +37,18 @@ To start the bot, use the following **example command**:
 binance-bot bull-trade -t "XRP/USDT" -a 50 -sl 1.5 -tp 3.0 -b 0.9995 -s 1.0005 -rp 4 -ra 0
 ```
 
+#### Example Command Details
+
+The example above demonstrates a configuration with:
+- Trading the pair `XRP/USDT`.
+- Trading an amount of `50`.
+- A stop-loss of `1.5%` and a take-profit of `3%`.
+- Adjusted buy and sell factors, rounded the price to 4 decimals and the amount to 0 decimals.
+
+Modify these parameters based on your specific trading requirements.
+
+---
+
 #### Explanation of Command Arguments
 
 | Option               | Short | Description                                                                                 | Default       |
@@ -51,18 +63,6 @@ binance-bot bull-trade -t "XRP/USDT" -a 50 -sl 1.5 -tp 3.0 -b 0.9995 -s 1.0005 -
 | `--round-amount`     | `--ra`| Decimal precision for rounding amount values.                                               | `0`           |
 | `--operations`       | `-o`  | Number of operations to execute during the trading session.                                 | `100`         |
 | `--help`             | `-h`  | Show help for the `bull-trade` command.                                                     | -             |
-
-#### Example Command Details
-
-The example below demonstrates a configuration with:
-- Trading the pair `XRP/USDT`.
-- Trading an amount of `50`.
-- A stop-loss of `1.5%` and a take-profit of `3%`.
-- Adjusted buy and sell factors, rounded the price to 4 decimals and the amount to 0 decimals.
-
-Modify these parameters based on your specific trading requirements.
-
----
 
 ### Help Commands
 
