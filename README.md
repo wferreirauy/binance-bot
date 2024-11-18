@@ -1,4 +1,8 @@
 # Binance Trade Bot
+
+![Captura desde 2024-11-18 00-51-42](https://github.com/user-attachments/assets/50f62e72-7cda-45a9-844c-88b70dbbd772)
+
+
 ## Usage
 
 ⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet or small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
