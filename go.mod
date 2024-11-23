@@ -5,6 +5,7 @@ go 1.23.3
 require (
 	github.com/binance/binance-connector-go v0.7.0
 	github.com/fatih/color v1.18.0
+	github.com/gosuri/uilive v0.0.4
 	github.com/urfave/cli/v2 v2.27.5
 )
 

@@ -2,10 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"log"
+	"math"
 	"strconv"
+	"strings"
+	"time"
 
 	binance_connector "github.com/binance/binance-connector-go"
+	color "github.com/fatih/color"
 )
 
 // Get price of a ticker symbol
@@ -24,6 +31,33 @@ func GetPrice(client *binance_connector.Client, symbol string) (float64, error) 
 		return price, nil
 	}
 	return 0.0, fmt.Errorf("price: could not get price: %w", err)
+}
+
+// Print current ticker price
+func printPrice(writer io.Writer, ticker string, price, prevPrice float64, round uint) {
+	red := color.New(color.FgHiRed, color.Bold).SprintFunc()
+	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
+	yellow := color.New(color.FgHiYellow, color.Bold).SprintFunc()
+	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
+
+	scoin, dcoin, found := strings.Cut(ticker, "/")
+	if !found {
+		log.Fatal("ticker malformed, \"/\" is missing ")
+	}
+
+	log.SetOutput(writer)
+	now := time.Now().Format("02/01/2006 15:04:05")
+	switch {
+	case price < prevPrice:
+		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
+			now, yellow(scoin), red(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
+	case price > prevPrice:
+		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
+			now, yellow(scoin), green(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
+	default:
+		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
+			now, yellow(scoin), white(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
+	}
 }
 
 // Get Historical Prices for a period
@@ -45,6 +79,26 @@ func getHistoricalPrices(client *binance_connector.Client, symbol, interval stri
 		prices = append(prices, price)
 	}
 	return prices, nil
+}
+
+// Tendency
+func getTendency(client *binance_connector.Client, ticker, timePeriod string, period int) (string, error) {
+	hp, err := getHistoricalPrices(client, ticker, timePeriod, period)
+	if err != nil {
+		return "", err
+	}
+	var tendency string
+	dema := calculateDEMA(hp, 9)
+	if ema, _ := calculateEMA(hp, 100); len(ema) > 0 {
+		if dema[len(dema)-1] > ema[len(ema)-1] {
+			tendency = "up"
+		} else if dema[len(dema)-1] < ema[len(ema)-1] {
+			tendency = "down"
+		}
+	} else {
+		tendency = "up"
+	}
+	return tendency, nil
 }
 
 // RSI
@@ -131,29 +185,55 @@ func calculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) (
 	return macdLine, signalLine
 }
 
-// stop-loss
-/* func stopLoss(client *binance_connector.Client, symbol string, initialPrice, stopLossPercentage, qty float64,
-	roundPrice uint) {
-	stopLossPrice := initialPrice * (1 - stopLossPercentage/100)
-	for {
-		currentPrice, err := GetPrice(client, symbol)
-		if err != nil {
-			log.Println("stopLoss: unable to get the current price")
-			continue
-		}
-		if currentPrice <= stopLossPrice {
-			log.Printf("\nCreating new %s order\n", red("SELL"))
-			sell, err := TradeSell(symbol, qty, currentPrice, 1, roundPrice)
-			if err != nil {
-				log.Fatalf("error creating SELL order: %s\n", err)
-			}
-			sellOrder := reflect.ValueOf(sell).Elem()
-			orderId := sellOrder.FieldByName("OrderId").Int()
-			if getor, err := GetOrder(symbol, orderId); err == nil {
-				log.Printf("SELL order created. Id: %d - Status: %s\n", getor.OrderId, getor.Status)
-			}
-			break
-		}
-		time.Sleep(10 * time.Second)
+// Bollinger Bands
+
+// BollingerBands stores the upper, middle (SMA), and lower bands
+type BollingerBands struct {
+	UpperBand  []float64
+	MiddleBand []float64
+	LowerBand  []float64
+}
+
+// standardDeviation calculates the Standard Deviation for a given set of prices and their mean
+func standardDeviation(prices []float64, mean float64) float64 {
+	var sum float64
+	for _, price := range prices {
+		sum += math.Pow(price-mean, 2)
 	}
-} */
+	variance := sum / float64(len(prices))
+	return math.Sqrt(variance)
+}
+
+// CalculateBollingerBands calculates the Bollinger Bands for a given list of prices
+func CalculateBollingerBands(prices []float64, period int, multiplier float64) (BollingerBands, error) {
+	if len(prices) < period {
+		return BollingerBands{}, errors.New("not enough prices to calculate Bollinger Bands")
+	}
+
+	var upperBand, middleBand, lowerBand []float64
+
+	for i := 0; i <= len(prices)-period; i++ {
+		// Slice the period
+		window := prices[i : i+period]
+
+		// Calculate SMA
+		sma := calculateSMA(window, period)
+
+		// Calculate Standard Deviation
+		stdDev := standardDeviation(window, sma[len(sma)-1])
+
+		// Calculate Bands
+		upper := sma[len(sma)-1] + multiplier*stdDev
+		lower := sma[len(sma)-1] - multiplier*stdDev
+
+		middleBand = append(middleBand, sma[len(sma)-1])
+		upperBand = append(upperBand, upper)
+		lowerBand = append(lowerBand, lower)
+	}
+
+	return BollingerBands{
+		UpperBand:  upperBand,
+		MiddleBand: middleBand,
+		LowerBand:  lowerBand,
+	}, nil
+}

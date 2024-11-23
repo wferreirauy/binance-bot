@@ -40,14 +40,16 @@ func main() {
 				Aliases: []string{"bt"},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:    "ticker",
-						Usage:   "ticker to trade, format ABC/USD eg. BTC/USDT",
-						Aliases: []string{"t"},
+						Name:     "ticker",
+						Usage:    "ticker to trade, format ABC/USD eg. BTC/USDT",
+						Aliases:  []string{"t"},
+						Required: true,
 					},
 					&cli.Float64Flag{
-						Name:    "amount",
-						Usage:   "how much to trade",
-						Aliases: []string{"a"},
+						Name:     "amount",
+						Usage:    "how much to trade",
+						Aliases:  []string{"a"},
+						Required: true,
 					},
 					&cli.Float64Flag{
 						Name:    "stop-loss",
@@ -74,14 +76,16 @@ func main() {
 						Aliases: []string{"s"},
 					},
 					&cli.IntFlag{
-						Name:    "round-price",
-						Usage:   "price decimals round",
-						Aliases: []string{"rp"},
+						Name:     "round-price",
+						Usage:    "price decimals round",
+						Aliases:  []string{"rp"},
+						Required: true,
 					},
 					&cli.IntFlag{
-						Name:    "round-amount",
-						Usage:   "price decimals round",
-						Aliases: []string{"ra"},
+						Name:     "round-amount",
+						Usage:    "amount decimals round",
+						Aliases:  []string{"ra"},
+						Required: true,
 					},
 					&cli.IntFlag{
 						Name:    "operations",
