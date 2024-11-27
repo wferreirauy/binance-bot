@@ -4,12 +4,13 @@ import (
 	"math"
 )
 
+// Returns a float rounded by the given precision
 func roundFloat(val float64, precision uint) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return math.Round(val*ratio) / ratio
 }
 
+// Implement a function to send alerts, for example, using a messaging service like Telegram or Slack.
 /* func sendAlert(message string) {
-	// Implementa una función para enviar alertas, por ejemplo, usando un servicio de mensajería como Telegram o Slack
-	log.Printf("Alerta: %s", message)
+	log.Printf("Alert: %s", message)
 } */
