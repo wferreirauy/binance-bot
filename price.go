@@ -45,7 +45,6 @@ func printPrice(writer io.Writer, ticker string, price, prevPrice float64, round
 		log.Fatal("ticker malformed, \"/\" is missing ")
 	}
 
-	log.SetOutput(writer)
 	now := time.Now().Format("02/01/2006 15:04:05")
 	switch {
 	case price < prevPrice:

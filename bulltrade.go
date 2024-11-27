@@ -208,6 +208,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			time.Sleep(10 * time.Second)
 		}
 		cpw.Stop()
+		odw.Stop()
 		operation++
 		time.Sleep(1 * time.Minute) // 1 minute to start next operation
 	}
