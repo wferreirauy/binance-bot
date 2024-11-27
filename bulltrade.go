@@ -113,6 +113,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				for { // looking at buy order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
+							osw.Newline()
 							fmt.Fprintf(osw, "%s BUY order filled!\n", time.Now().Format("02/01/2006 15:04:05"))
 							break // buy filled
 						}
@@ -163,6 +164,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				for { // looking at sell order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
+							osw.Newline()
 							fmt.Fprintf(osw, "%s Stop-Loss SELL order filled!\n", time.Now().Format("02/01/2006 15:04:05"))
 							break // sell filled
 						}
@@ -197,6 +199,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				for { // looking at sell order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
+							osw.Newline()
 							fmt.Fprintf(osw, "%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
 							break // sell filled
 						}
