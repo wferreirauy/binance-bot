@@ -14,9 +14,9 @@ import (
 	"github.com/gosuri/uilive"
 )
 
-var period = 100            // length period for moving average
+var period = 80             // length period for moving average
 var interval = "1m"         // time intervals of historical prices for trading
-var intervalTendency = "5m" // time intervals for get tendency
+var intervalTendency = "3m" // time intervals for get tendency
 
 func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor float64,
 	roundPrice, roundAmount, max_ops uint) {
@@ -47,10 +47,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 		// set tui writers
 		cpw := uilive.New() // current price line writer
 		cpw.Start()
-		odw := uilive.New() // show order details in other line writer
-		odw.Start()
-		osw := uilive.New() // show order latest status in another line writer
-		osw.Start()
 
 		fmt.Println(white("Operation"), cyan("#"+strconv.Itoa(operation)))
 		qty = roundFloat(qty, roundAmount)
@@ -102,18 +98,18 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 					log.Printf("could not convert price on buy order to float: %s\n", err)
 				}
 
-				fmt.Fprintf(odw, "%s %s %f %s - PRICE: %s - Total %s: %f\n",
+				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
 					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), qty, scoin, white(buyPrice), dcoin, buyPrice*qty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Fprintf(osw, "%s BUY order created. Id: %d - Status: %s\n",
+					fmt.Printf("%s BUY order created. Id: %d - Status: %s\n",
 						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
 				}
 
 				for { // looking at buy order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Fprintf(osw.Newline(), "%s BUY order filled!\n", time.Now().Format("02/01/2006 15:04:05"))
+							fmt.Printf("%s BUY order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
 							break // buy filled
 						}
 					}
@@ -124,10 +120,12 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 			time.Sleep(10 * time.Second)
 		}
-
+		cpw.Stop()
 		time.Sleep(30 * time.Second) // sleep before start selling process
 
 		//// sell ////
+		cpw.Start()
+		var prevRsi float64 = 0.0
 		for {
 			hp, err := getHistoricalPrices(client, ticker, interval, period)
 			if err != nil {
@@ -138,6 +136,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 			price := hp[len(hp)-1]
 			prevPrice := hp[len(hp)-2]
+			rsi := calculateRSI(hp, 14)
 
 			// print current price
 			printPrice(cpw, symbol, price, prevPrice, roundPrice)
@@ -153,17 +152,17 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				sellOrder := reflect.ValueOf(sell).Elem()
 				orderId := sellOrder.FieldByName("OrderId").Int()
 
-				fmt.Fprintf(odw, "%s %s %f %s - PRICE: %s - Total %s: %f\n",
+				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
 					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(buyPrice), dcoin, buyPrice*qty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Fprintf(osw, "%s %s order created. Id: %d - Status: %s\n",
+					fmt.Printf("%s %s order created. Id: %d - Status: %s\n",
 						time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS SELL"), getor.OrderId, getor.Status)
 				}
 				for { // looking at sell order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Fprintf(osw.Newline(), "%s Stop-Loss SELL order filled!\n", time.Now().Format("02/01/2006 15:04:05"))
+							fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS SELL"))
 							break // sell filled
 						}
 					}
@@ -175,10 +174,8 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			// take profit
 			profitPercentage := takeProfit
 			profitPrice := buyPrice * (1 + profitPercentage/100)
-			macdLine, signalLine := calculateMACD(hp, 12, 26, 9)
 			if price >= profitPrice && // price reach take profit percentage
-				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] { // MACD crosess signal
+				rsi <= prevRsi {
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order: %s\n", err)
@@ -186,18 +183,18 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				sellOrder := reflect.ValueOf(sell).Elem()
 				orderId := sellOrder.FieldByName("OrderId").Int()
 
-				fmt.Fprintf(odw, "%s %s %f %s - PRICE: %s - Total %s: %f\n",
+				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
 					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(buyPrice), dcoin, buyPrice*qty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Fprintf(osw, "%s SELL order created. Id: %d - Status: %s\n",
+					fmt.Printf("%s SELL order created. Id: %d - Status: %s\n",
 						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
 				}
 
 				for { // looking at sell order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Fprintf(osw.Newline(), "%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
+							fmt.Printf("%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
 							break // sell filled
 						}
 					}
@@ -205,10 +202,10 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				}
 				break // sold
 			}
+			prevRsi = rsi // save rsi for next round
 			time.Sleep(10 * time.Second)
 		}
 		cpw.Stop()
-		odw.Stop()
 		operation++
 		time.Sleep(1 * time.Minute) // 1 minute to start next operation
 	}
