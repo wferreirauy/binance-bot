@@ -88,7 +88,7 @@ func getTendency(client *binance_connector.Client, ticker, timePeriod string, pe
 	}
 	var tendency string
 	dema := calculateDEMA(hp, 9)
-	if ema, _ := calculateEMA(hp, 100); len(ema) > 0 {
+	if ema, _ := calculateEMA(hp, period); len(ema) > 0 {
 		if dema[len(dema)-1] > ema[len(ema)-1] {
 			tendency = "up"
 		} else if dema[len(dema)-1] < ema[len(ema)-1] {
