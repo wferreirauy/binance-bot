@@ -13,7 +13,7 @@ import (
 	binance_connector "github.com/binance/binance-connector-go"
 	color "github.com/fatih/color"
 	"github.com/gosuri/uilive"
-	"github.com/wferreirauy/binance-bot/config"
+	config "github.com/wferreirauy/binance-bot/config"
 )
 
 var cfg Config = config.Read.Configs()
