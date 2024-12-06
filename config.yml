@@ -1,0 +1,11 @@
+historical-prices:
+  period: 100
+  interval: "1m"
+tendency:
+  interval: "3m"
+indicators:
+  rsi:
+    interval: "5m"
+    length: 14
+  dema:
+    length: 9

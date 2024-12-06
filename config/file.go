@@ -1,22 +1,42 @@
 package config
 
-type ConfigFile struct {
-	Filename     string `json:"-"` // Note: for internal use only
-	PeriodTime   string `json:"period-time,omitempty"`
-	PeriodLength string `json:"period-length,omitempty"`
-	StopLoss     bool   `json:"stoploss,omitempty"`
+import (
+	"fmt"
+	"os"
+
+	yaml "gopkg.in/yaml.v2"
+)
+
+type Config struct {
+	HistoricalPrices struct {
+		Period   uint16 `yaml:"period"`
+		Interval string `yaml:"interval"`
+	} `yaml:"historical-prices"`
+	Tendency struct {
+		Interval string `yaml:"interval"`
+	} `yaml:"tendency"`
+	Indicators struct {
+		Rsi struct {
+			Interval string `yaml:"interval"`
+			Length   uint16 `yaml:"length"`
+		} `yaml:"rsi"`
+		Dema struct {
+			Length uint16 `yaml:"length"`
+		} `yaml:"dema"`
+	} `yaml:"indicators"`
 }
 
-// GetFilename returns the file name that this config file is based on.
-func (configFile *ConfigFile) GetFilename() string {
-	return configFile.Filename
+func (c *Config) Read() (*Config, error) {
+	f, err := os.Open("config.yml")
+	if err != nil {
+		return nil, fmt.Errorf("Config: could not open config file: %w", err)
+	}
+	defer f.Close()
+	var cfg Config
+	decoder := yaml.NewDecoder(f)
+	err = decoder.Decode(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("Config: could not decode the config file: %w", err)
+	}
+	return &cfg, nil
 }
-
-// func (configFile *ConfigFile) LoadFromReader(configData io.Reader) (map[string]any, error) {
-// 	if err := json.NewDecoder(configData).Decode(configFile); err != nil && !errors.Is(err, io.EOF) {
-// 		return nil, err
-// 	}
-// 	var configs = make(map[string]any)
-// 	configs["pt"] = append(configs, configFile.PeriodTime)
-// 	return configs, nil
-// }

@@ -13,12 +13,14 @@ import (
 	binance_connector "github.com/binance/binance-connector-go"
 	color "github.com/fatih/color"
 	"github.com/gosuri/uilive"
+	"github.com/wferreirauy/binance-bot/config"
 )
 
-var period = 100      // length period for moving average
-var interval = "1m"   // time intervals of historical prices for trading
-var interval3m = "3m" // time intervals for get tendency
-var interval5m = "5m"
+var cfg Config = config.Read.Configs()
+var period = cfg.HistoricalPrices.Period     // length period for moving average
+var interval = cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
+var interval3m = cfg.Tendency.Interval       // time intervals for get tendency
+var interval5m = cfg.Indicators.Rsi.Interval
 
 func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor float64,
 	roundPrice, roundAmount, max_ops uint) {
