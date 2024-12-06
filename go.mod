@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/urfave/cli/v2 v2.27.5
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
