@@ -140,6 +140,9 @@ The bot will place a buy order when these conditions are met
 3. **DEMA & EMA Confirmation**:
    - The market is considered to have an upward trend when the **15-period Double Exponential Moving Average (DEMA)** is **above** the **15-period Exponential Moving Average (EMA)**.
 
+4. **DEMA Proximity to Bollinger Bands**:
+   - A buy signal is favored when the current DEMA is closer to the Lower Bollinger Band than to the Upper Bollinger Band, suggesting a potential reversal from oversold conditions.
+
 #### **Sell Conditions**
 The bot will place a sell order when these conditions are met
 1. **Take Profit Factor**:
