@@ -4,6 +4,24 @@
 
 ![Captura desde 2024-12-07 03-23-41](https://github.com/user-attachments/assets/4d251761-ed43-4649-842f-fd016bc62532)
 
+## Download
+
+#### **Download Precompiled Binary**
+
+You can **download the precompiled binary** from the repository's release artifacts.
+
+1. Visit the [Releases](https://github.com/wferreirauy/binance-bot/releases) page of the repository.
+2. Download the appropriate binary for your operating system (e.g., Linux, macOS, Windows).
+3. Make the binary executable (if required):
+   - On Linux or macOS:
+     ```bash
+     chmod +x binance-bot
+     ```
+4. Move the binary to a directory in your `$PATH` for global access:
+   - On Linux
+   ```bash
+   sudo mv binance-bot /usr/local/bin/
+
 ## Usage
 
 ⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
@@ -32,7 +50,7 @@ Before using the Binance Trade Bot, you need to configure your environment with 
    You can specify a custom configuration file to adjust the bot’s parameters of trading indincators. <br />
    See the [sample configuration file](/sample-binance-config.yml).
 
-# Now you're ready to use the Binance Trade Bot! 🎉
+#### Now you're ready to use the Binance Trade Bot! 🎉
 
 ### Run the Bot
 
@@ -165,24 +183,6 @@ This strategy combines momentum indicators, trend confirmation, and predefined r
 ⚠️ **Note:** Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
 
 ---
-
-## Download
-
-#### **Download Precompiled Binary**
-
-You can **download the precompiled binary** from the repository's release artifacts.
-
-1. Visit the [Releases](https://github.com/wferreirauy/binance-bot/releases) page of the repository.
-2. Download the appropriate binary for your operating system (e.g., Linux, macOS, Windows).
-3. Make the binary executable (if required):
-   - On Linux or macOS:
-     ```bash
-     chmod +x binance-bot
-     ```
-4. Move the binary to a directory in your `$PATH` for global access:
-   - On Linux
-   ```bash
-   sudo mv binance-bot /usr/local/bin/
 
 ## Build from Source
 
