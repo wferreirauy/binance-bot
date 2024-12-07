@@ -13,15 +13,30 @@ import (
 	binance_connector "github.com/binance/binance-connector-go"
 	color "github.com/fatih/color"
 	"github.com/gosuri/uilive"
+	"github.com/wferreirauy/binance-bot/config"
 )
 
-var period = 100      // length period for moving average
-var interval = "1m"   // time intervals of historical prices for trading
-var interval3m = "3m" // time intervals for get tendency
-var interval5m = "5m"
+func BullTrade(
+	configFile string,
+	symbol string,
+	qty float64,
+	stopLoss float64,
+	takeProfit float64,
+	buyFactor float64,
+	sellFactor float64,
+	roundPrice uint,
+	roundAmount uint,
+	max_ops uint,
+) {
 
-func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor float64,
-	roundPrice, roundAmount, max_ops uint) {
+	// read config.yml file
+	var c config.Config
+	cfg, err := c.Read(configFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	period := cfg.HistoricalPrices.Period     // length period for moving average
+	interval := cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
 
 	// initialize binance api client
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
@@ -71,21 +86,30 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 			// indicators
 			// tendency "up" or "down"
-			tendency, err := getTendency(client, ticker, interval3m, period)
+			tendency, err := getTendency(client, ticker, cfg.Tendency.Interval, period)
 			if err != nil {
 				log.Printf("Error getting tendency: %v\n", err)
 				time.Sleep(10 * time.Second)
 				continue
 			}
 			// dema
-			dema := calculateDEMA(hp, 9)
+			dema := calculateDEMA(hp, cfg.Indicators.Dema.Length)
 			currentDema := dema[len(dema)-1]
 			//rsi
-			rsi := calculateRSI(hp, 14)
+			rsi := calculateRSI(hp, cfg.Indicators.Rsi.Length)
 			// macd
-			macdLine, signalLine := calculateMACD(hp, 12, 26, 9)
+			macdLine, signalLine := calculateMACD(
+				hp,
+				cfg.Indicators.Macd.FastLength,
+				cfg.Indicators.Macd.SlowLength,
+				cfg.Indicators.Macd.SignalLength,
+			)
 			// bollingerbands
-			bb, err := CalculateBollingerBands(hp, 20, 2.0)
+			bb, err := CalculateBollingerBands(
+				hp,
+				cfg.Indicators.BollingerBands.Length,
+				cfg.Indicators.BollingerBands.Multiplier,
+			)
 			if err != nil {
 				log.Printf("Error getting BollingerBands: %v\n", err)
 			}
@@ -95,10 +119,10 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			distanceToLower := math.Abs(currentDema - lowerBand)
 
 			// when to buy
-			if rsi < 70 && // RSI below 70
+			if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) && // RSI below upper limit
 				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] && // MACD crosses signal
-				tendency == "up" && // 3m tendency
+				tendency == cfg.Tendency.Direction && // 3m tendency
 				distanceToLower < distanceToUpper { // dema closer than lower band
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 				if err != nil {
@@ -139,7 +163,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 		//// sell ////
 		cpw.Start()
-		var prevRsi float64 = 0.0
 		for {
 			hp, err := getHistoricalPrices(client, ticker, interval, period)
 			if err != nil {
@@ -147,7 +170,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				time.Sleep(10 * time.Second)
 				continue
 			}
-			hp5m, err := getHistoricalPrices(client, ticker, interval5m, period)
+			rsiprices, err := getHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
 			if err != nil {
 				log.Printf("Error getting historical prices with %s interval: %v\n", interval, err)
 				time.Sleep(10 * time.Second)
@@ -156,7 +179,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 
 			price := hp[len(hp)-1]
 			prevPrice := hp[len(hp)-2]
-			rsi5m := calculateRSI(hp5m, 14)
+			rsi := calculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
 
 			// print current price
 			printPrice(cpw, symbol, price, prevPrice, roundPrice)
@@ -196,7 +219,7 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 			profitPercentage := takeProfit
 			profitPrice := buyPrice * (1 + profitPercentage/100)
 			if price >= profitPrice && // price reach take profit percentage
-				rsi5m < prevRsi {
+				rsi[len(rsi)-1] < rsi[len(rsi)-2] { // and rsi turns down
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
 					log.Fatalf("error creating SELL order with amount %f: %s\n",
@@ -224,7 +247,6 @@ func BullTrade(symbol string, qty, stopLoss, takeProfit, buyFactor, sellFactor f
 				}
 				break // sold
 			}
-			prevRsi = rsi5m // save rsi for next round
 			time.Sleep(10 * time.Second)
 		}
 		cpw.Stop()

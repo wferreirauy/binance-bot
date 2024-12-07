@@ -101,9 +101,18 @@ func getTendency(client *binance_connector.Client, ticker, timePeriod string, pe
 }
 
 // RSI
-func calculateRSI(prices []float64, period int) float64 {
+func calculateRSI(prices []float64, period int) []float64 {
+	// Validation to avoid errors if there are not enough prices
+	if len(prices) < period {
+		return []float64{}
+	}
+
+	// Initialize the list of RSI values
+	rsiValues := make([]float64, 0, len(prices)-period+1)
+
+	// Initial calculation of gains and losses
 	var gains, losses float64
-	for i := 1; i < len(prices); i++ {
+	for i := 1; i <= period; i++ {
 		change := prices[i] - prices[i-1]
 		if change > 0 {
 			gains += change
@@ -111,10 +120,29 @@ func calculateRSI(prices []float64, period int) float64 {
 			losses -= change
 		}
 	}
+
+	// Initial RSI calculation
 	avgGain := gains / float64(period)
 	avgLoss := losses / float64(period)
-	rs := avgGain / avgLoss
-	return 100 - (100 / (1 + rs))
+	initialRS := avgGain / avgLoss
+	rsiValues = append(rsiValues, 100-(100/(1+initialRS)))
+
+	// Calculate RSI for the remaining prices
+	for i := period; i < len(prices); i++ {
+		change := prices[i] - prices[i-1]
+		if change > 0 {
+			avgGain = ((avgGain * float64(period-1)) + change) / float64(period)
+			avgLoss = (avgLoss * float64(period-1)) / float64(period)
+		} else {
+			avgGain = (avgGain * float64(period-1)) / float64(period)
+			avgLoss = ((avgLoss * float64(period-1)) - change) / float64(period)
+		}
+
+		rs := avgGain / avgLoss
+		rsiValues = append(rsiValues, 100-(100/(1+rs)))
+	}
+
+	return rsiValues
 }
 
 // SMA
