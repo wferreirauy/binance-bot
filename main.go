@@ -33,6 +33,14 @@ func main() {
 		Usage:                "A program bot to trade in Binance",
 		UsageText:            "binance-bot [global options] command <command args>",
 		EnableBashCompletion: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "config-file",
+				Usage:   "Load configuration from `FILE`",
+				Aliases: []string{"f"},
+				Value:   os.Getenv("HOME") + "/binance-config.yml",
+			},
+		},
 		Commands: []*cli.Command{
 			{
 				Name:    "bull-trade",
@@ -95,7 +103,7 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BullTrade(cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+					BullTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
 					return nil

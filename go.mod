@@ -1,4 +1,4 @@
-module main
+module github.com/wferreirauy/binance-bot
 
 go 1.23.3
 

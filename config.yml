@@ -1,11 +1,23 @@
+# Sample config.yml file
 historical-prices:
   period: 100
   interval: "1m"
 tendency:
   interval: "3m"
+  direction: "up"
 indicators:
   rsi:
     interval: "5m"
     length: 14
+    upper-limit: 70
+    middle-limit: 50
+    lower-limit: 30
   dema:
     length: 9
+  macd:
+    fast-length: 12
+    slow-length: 26
+    signal-length: 9
+  bollinger-bands:
+    length: 20
+    multiplier: 2.0
