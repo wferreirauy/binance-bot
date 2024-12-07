@@ -29,10 +29,10 @@ Before using the Binance Trade Bot, you need to configure your environment with 
    ```
 
 3. **Create a config file**
-   You can specify a custom configuration file to adjust the bot’s parameters of trading indincators.
+   You can specify a custom configuration file to adjust the bot’s parameters of trading indincators. <br />
    See the [sample configuration file](/sample-binance-config.yml).
 
-Now you're ready to use the Binance Trade Bot! 🎉
+# Now you're ready to use the Binance Trade Bot! 🎉
 
 ### Run the Bot
 
