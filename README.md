@@ -85,7 +85,7 @@ Modify these parameters based on your specific trading requirements.
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.0.4
+     v0.0.5
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
