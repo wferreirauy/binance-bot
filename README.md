@@ -2,6 +2,7 @@
 
 ![Captura desde 2024-11-18 00-51-42](https://github.com/user-attachments/assets/50f62e72-7cda-45a9-844c-88b70dbbd772)
 
+![Captura desde 2024-12-07 03-23-41](https://github.com/user-attachments/assets/4d251761-ed43-4649-842f-fd016bc62532)
 
 ## Usage
 
