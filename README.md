@@ -27,6 +27,10 @@ Before using the Binance Trade Bot, you need to configure your environment with 
    export BINANCE_API_SECRET=<your-secret-key>
    ```
 
+3. **Create a config file**
+   You can specify a custom configuration file to adjust the bot’s parameters of trading indincators.
+   See the [sample configuration file](/sample-binance-config.yml).
+
 Now you're ready to use the Binance Trade Bot! 🎉
 
 ### Run the Bot
@@ -34,16 +38,17 @@ Now you're ready to use the Binance Trade Bot! 🎉
 To start the bot, use the following **example command**:
 
 ```bash
-binance-bot bull-trade -t "XRP/USDT" -a 50 -sl 1.5 -tp 3.0 -b 0.9995 -s 1.0005 -rp 4 -ra 0
+binance-bot -f binance-config.yml bull-trade -t "XRP/USDT" -a 50 -sl 1.5 -tp 2.0 -b 0.9998 -s 1.0003 -rp 4 -ra 0
 ```
 
-#### Example Command Details
+#### Example bull-trade Command Details
 
 The example above demonstrates a configuration with:
 - Trading the pair `XRP/USDT`.
 - Trading an amount of `50`.
-- A stop-loss of `1.5%` and a take-profit of `3%`.
-- Adjusted buy and sell factors, rounded the price to 4 decimals and the amount to 0 decimals.
+- A stop-loss of `1.5%` and a take-profit of `2%`.
+- Adjusted buy and sell factors for the LIMIT order target price.
+- Rounded the price to 4 decimals and the amount to 0 decimals.
 
 Modify these parameters based on your specific trading requirements.
 
@@ -80,7 +85,7 @@ Modify these parameters based on your specific trading requirements.
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.0.1
+     v0.0.4
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -90,6 +95,7 @@ Modify these parameters based on your specific trading requirements.
      help, h         Shows a list of commands or help for one command
 
   GLOBAL OPTIONS:
+     --config-file FILE, -f FILE  Load configuration from FILE (default: $HOME/binance-config.yml)
      --help, -h     show help
      --version, -v  print the version
   ```
