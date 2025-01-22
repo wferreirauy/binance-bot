@@ -34,8 +34,8 @@ Before using the Binance Trade Bot, you need to configure your environment with 
 
 1. **Obtain your Binance API Key and Secret**
    - Log in to your [Binance account](https://www.binance.com/).
-   - Navigate to the API Management section.
-   - Create a new API key, providing a label for it (e.g., `CLI_Bot`).
+   - Navigate to the [API Management section](https://www.binance.com/en/my/settings/api-management).
+   - Create a new API key, choosing HMAC type and providing any label (e.g., `CLI_Bot`).
    - Save the **API Key** and **Secret Key** securely. You will not be able to view the secret again after closing the page.
 
 2. **Set Environment Variables**
