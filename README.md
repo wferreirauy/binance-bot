@@ -43,7 +43,7 @@ Before using the Binance Trade Bot, you need to configure your environment with 
 
    ```bash
    export BINANCE_API_KEY=<your-api-key>
-   export BINANCE_API_SECRET=<your-secret-key>
+   export BINANCE_SECRET_KEY=<your-secret-key>
    ```
 
 3. **Create a config file**
