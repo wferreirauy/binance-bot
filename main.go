@@ -103,10 +103,9 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BullTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+					return BullTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
-					return nil
 				},
 			},
 		},
