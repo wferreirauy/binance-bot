@@ -36,7 +36,37 @@ type Config struct {
 			Length     int     `yaml:"length"`
 			Multiplier float64 `yaml:"multiplier"`
 		} `yaml:"bollinger-bands"`
+		Atr struct {
+			Period int `yaml:"period"`
+		} `yaml:"atr"`
+		Adx struct {
+			Period    int `yaml:"period"`
+			Threshold int `yaml:"threshold"`
+		} `yaml:"adx"`
+		Volume struct {
+			MaPeriod int `yaml:"ma-period"`
+		} `yaml:"volume"`
 	} `yaml:"indicators"`
+	TrailingStop struct {
+		Enabled       bool    `yaml:"enabled"`
+		ActivationPct float64 `yaml:"activation-pct"`
+		TrailingPct   float64 `yaml:"trailing-pct"`
+	} `yaml:"trailing-stop"`
+	AI struct {
+		Enabled  bool `yaml:"enabled"`
+		Providers struct {
+			OpenAI struct {
+				Model string `yaml:"model"`
+			} `yaml:"openai"`
+			DeepSeek struct {
+				Model string `yaml:"model"`
+			} `yaml:"deepseek"`
+			Claude struct {
+				Model string `yaml:"model"`
+			} `yaml:"claude"`
+		} `yaml:"providers"`
+		MinConfidence float64 `yaml:"min-confidence"`
+	} `yaml:"ai"`
 }
 
 func (c *Config) Read(filePath string) (*Config, error) {

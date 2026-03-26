@@ -264,3 +264,198 @@ func CalculateBollingerBands(prices []float64, period int, multiplier float64) (
 		LowerBand:  lowerBand,
 	}, nil
 }
+
+// OHLCV stores full candlestick data
+type OHLCV struct {
+	Opens   []float64
+	Highs   []float64
+	Lows    []float64
+	Closes  []float64
+	Volumes []float64
+}
+
+// getHistoricalOHLCV retrieves full OHLCV candlestick data for a period
+func getHistoricalOHLCV(client *binance_connector.Client, symbol, interval string, period int) (*OHLCV, error) {
+	klines, err := client.NewKlinesService().Symbol(symbol).
+		Interval(interval).
+		Limit(period).
+		Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	ohlcv := &OHLCV{
+		Opens:   make([]float64, 0, len(klines)),
+		Highs:   make([]float64, 0, len(klines)),
+		Lows:    make([]float64, 0, len(klines)),
+		Closes:  make([]float64, 0, len(klines)),
+		Volumes: make([]float64, 0, len(klines)),
+	}
+
+	for _, k := range klines {
+		o, err := strconv.ParseFloat(k.Open, 64)
+		if err != nil {
+			return nil, fmt.Errorf("price: could not convert open to float: %w", err)
+		}
+		h, err := strconv.ParseFloat(k.High, 64)
+		if err != nil {
+			return nil, fmt.Errorf("price: could not convert high to float: %w", err)
+		}
+		l, err := strconv.ParseFloat(k.Low, 64)
+		if err != nil {
+			return nil, fmt.Errorf("price: could not convert low to float: %w", err)
+		}
+		c, err := strconv.ParseFloat(k.Close, 64)
+		if err != nil {
+			return nil, fmt.Errorf("price: could not convert close to float: %w", err)
+		}
+		v, err := strconv.ParseFloat(k.Volume, 64)
+		if err != nil {
+			return nil, fmt.Errorf("price: could not convert volume to float: %w", err)
+		}
+		ohlcv.Opens = append(ohlcv.Opens, o)
+		ohlcv.Highs = append(ohlcv.Highs, h)
+		ohlcv.Lows = append(ohlcv.Lows, l)
+		ohlcv.Closes = append(ohlcv.Closes, c)
+		ohlcv.Volumes = append(ohlcv.Volumes, v)
+	}
+	return ohlcv, nil
+}
+
+// calculateATR computes Average True Range for volatility measurement
+func calculateATR(highs, lows, closes []float64, period int) []float64 {
+	if len(highs) < period+1 {
+		return []float64{}
+	}
+
+	trueRanges := make([]float64, len(highs)-1)
+	for i := 1; i < len(highs); i++ {
+		highLow := highs[i] - lows[i]
+		highClose := math.Abs(highs[i] - closes[i-1])
+		lowClose := math.Abs(lows[i] - closes[i-1])
+		trueRanges[i-1] = math.Max(highLow, math.Max(highClose, lowClose))
+	}
+
+	atr := make([]float64, 0, len(trueRanges)-period+1)
+	sum := 0.0
+	for i := 0; i < period; i++ {
+		sum += trueRanges[i]
+	}
+	atr = append(atr, sum/float64(period))
+
+	for i := period; i < len(trueRanges); i++ {
+		atr = append(atr, (atr[len(atr)-1]*float64(period-1)+trueRanges[i])/float64(period))
+	}
+
+	return atr
+}
+
+// wilderSmooth applies Wilder's smoothing method
+func wilderSmooth(data []float64, period int) []float64 {
+	if len(data) < period {
+		return []float64{}
+	}
+
+	smoothed := make([]float64, 0, len(data)-period+1)
+	sum := 0.0
+	for i := 0; i < period; i++ {
+		sum += data[i]
+	}
+	smoothed = append(smoothed, sum)
+
+	for i := period; i < len(data); i++ {
+		smoothed = append(smoothed, smoothed[len(smoothed)-1]-smoothed[len(smoothed)-1]/float64(period)+data[i])
+	}
+
+	return smoothed
+}
+
+// calculateADX computes Average Directional Index for trend strength
+func calculateADX(highs, lows, closes []float64, period int) []float64 {
+	if len(highs) < period*2+1 {
+		return []float64{}
+	}
+
+	plusDM := make([]float64, len(highs)-1)
+	minusDM := make([]float64, len(highs)-1)
+	tr := make([]float64, len(highs)-1)
+
+	for i := 1; i < len(highs); i++ {
+		upMove := highs[i] - highs[i-1]
+		downMove := lows[i-1] - lows[i]
+		if upMove > downMove && upMove > 0 {
+			plusDM[i-1] = upMove
+		}
+		if downMove > upMove && downMove > 0 {
+			minusDM[i-1] = downMove
+		}
+		highLow := highs[i] - lows[i]
+		highClose := math.Abs(highs[i] - closes[i-1])
+		lowClose := math.Abs(lows[i] - closes[i-1])
+		tr[i-1] = math.Max(highLow, math.Max(highClose, lowClose))
+	}
+
+	smoothTR := wilderSmooth(tr, period)
+	smoothPlusDM := wilderSmooth(plusDM, period)
+	smoothMinusDM := wilderSmooth(minusDM, period)
+
+	minLen := len(smoothTR)
+	if len(smoothPlusDM) < minLen {
+		minLen = len(smoothPlusDM)
+	}
+	if len(smoothMinusDM) < minLen {
+		minLen = len(smoothMinusDM)
+	}
+
+	dx := make([]float64, minLen)
+	for i := 0; i < minLen; i++ {
+		if smoothTR[i] == 0 {
+			continue
+		}
+		plusDI := 100 * smoothPlusDM[i] / smoothTR[i]
+		minusDI := 100 * smoothMinusDM[i] / smoothTR[i]
+		diSum := plusDI + minusDI
+		if diSum > 0 {
+			dx[i] = 100 * math.Abs(plusDI-minusDI) / diSum
+		}
+	}
+
+	if len(dx) < period {
+		return []float64{}
+	}
+
+	adx := make([]float64, 0, len(dx)-period+1)
+	dxSum := 0.0
+	for i := 0; i < period; i++ {
+		dxSum += dx[i]
+	}
+	adx = append(adx, dxSum/float64(period))
+
+	for i := period; i < len(dx); i++ {
+		adx = append(adx, (adx[len(adx)-1]*float64(period-1)+dx[i])/float64(period))
+	}
+
+	return adx
+}
+
+// calculateVWAP computes Volume Weighted Average Price
+func calculateVWAP(highs, lows, closes, volumes []float64) []float64 {
+	if len(closes) == 0 {
+		return []float64{}
+	}
+
+	vwap := make([]float64, len(closes))
+	cumulativeTPV := 0.0
+	cumulativeVolume := 0.0
+
+	for i := range closes {
+		typicalPrice := (highs[i] + lows[i] + closes[i]) / 3.0
+		cumulativeTPV += typicalPrice * volumes[i]
+		cumulativeVolume += volumes[i]
+		if cumulativeVolume > 0 {
+			vwap[i] = cumulativeTPV / cumulativeVolume
+		}
+	}
+
+	return vwap
+}
