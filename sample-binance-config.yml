@@ -21,3 +21,28 @@ indicators:
   bollinger-bands:
     length: 20
     multiplier: 2.0
+  atr:
+    period: 14
+  adx:
+    period: 14
+    threshold: 25     # minimum ADX for trade entry
+  volume:
+    ma-period: 20     # volume moving average period
+trailing-stop:
+  enabled: true
+  activation-pct: 1.5  # activate after 1.5% profit
+  trailing-pct: 1.0    # trail by 1.0% from peak
+
+# AI multi-agent configuration
+# API keys are read from environment variables:
+#   OPENAI_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY
+ai:
+  enabled: true
+  providers:
+    openai:
+      model: "gpt-4o-mini"        # free-tier friendly
+    deepseek:
+      model: "deepseek-chat"       # free tier available
+    claude:
+      model: "claude-3-5-haiku-20241022"  # most affordable Claude
+  min-confidence: 0.5              # minimum AI confidence to act on signal

@@ -19,7 +19,10 @@ import (
 	"github.com/wferreirauy/binance-bot/config"
 )
 
-func BullTrade(
+// BearTrade implements a sell-high-buy-low strategy for bearish markets.
+// It sells the asset when bearish signals are detected, then buys back
+// at a lower price to profit from the price decline.
+func BearTrade(
 	configFile string,
 	symbol string,
 	qty float64,
@@ -80,7 +83,7 @@ func BullTrade(
 		}
 	}
 
-	var buyPrice float64
+	var sellPrice float64
 	var operation = 1
 
 	for range max_ops {
@@ -88,10 +91,10 @@ func BullTrade(
 		cpw := uilive.New() // current price line writer
 		cpw.Start()
 
-		fmt.Println(white("Operation"), cyan("#"+strconv.Itoa(operation)))
+		fmt.Println(white("Bear Operation"), cyan("#"+strconv.Itoa(operation)))
 		qty = roundFloat(qty, roundAmount)
 
-		//// buy ////
+		//// sell (bear entry) ////
 		for {
 			// get historical OHLCV data
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
@@ -192,54 +195,50 @@ func BullTrade(
 				}
 
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				consensus, err := aiOrch.Analyze(ctx, snapshot, "BULL")
+				consensus, err := aiOrch.Analyze(ctx, snapshot, "BEAR")
 				cancel()
 				if err != nil {
 					log.Printf("AI analysis error: %v\n", err)
 				} else {
 					fmt.Print(consensus.String())
-					minConf := cfg.AI.MinConfidence
-					if minConf <= 0 {
-						minConf = 0.5
-					}
-					aiApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
+					aiApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
 
-			// when to buy
-			if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) && // RSI below upper limit
-				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] && // MACD crosses signal
-				tendency == cfg.Tendency.Direction && // tendency
-				distanceToLower < distanceToUpper && // dema closer than lower band
+			// when to sell (bear entry): inverse of bull buy conditions
+			if rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) && // RSI above lower limit
+				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
+				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] && // MACD crosses below signal
+				tendency == "down" && // bearish tendency
+				distanceToUpper < distanceToLower && // dema closer to upper band
 				adxStrong && // trend has strength
 				volumeConfirmed && // volume above average
 				aiApproved { // AI consensus supports entry
-				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
+				sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating BUY order: %s\n", err)
+					log.Fatalf("error creating SELL order: %s\n", err)
 				}
-				buyOrder := reflect.ValueOf(buy).Elem()
-				orderId := buyOrder.FieldByName("OrderId").Int()
-				orderPrice := buyOrder.FieldByName("Price").String()
-				buyPrice, err = strconv.ParseFloat(orderPrice, 64)
+				sellOrder := reflect.ValueOf(sell).Elem()
+				orderId := sellOrder.FieldByName("OrderId").Int()
+				orderPrice := sellOrder.FieldByName("Price").String()
+				sellPrice, err = strconv.ParseFloat(orderPrice, 64)
 				if err != nil {
-					log.Printf("could not convert price on buy order to float: %s\n", err)
+					log.Printf("could not convert price on sell order to float: %s\n", err)
 				}
 
 				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), qty, scoin, white(buyPrice), dcoin, buyPrice*qty)
+					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(sellPrice), dcoin, sellPrice*qty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Printf("%s BUY order created. Id: %d - Status: %s\n",
+					fmt.Printf("%s SELL order created. Id: %d - Status: %s\n",
 						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
 				}
 
-				for { // looking at buy order until is filled
+				for { // looking at sell order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Printf("%s BUY order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
-							break // buy filled
+							fmt.Printf("%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
+							break // sell filled
 						}
 					}
 					time.Sleep(10 * time.Second) // 10 secs to take another look
@@ -250,11 +249,12 @@ func BullTrade(
 			time.Sleep(10 * time.Second)
 		}
 		cpw.Stop()
-		time.Sleep(30 * time.Second) // sleep before start selling process
+		time.Sleep(30 * time.Second) // sleep before start buying process
 
-		//// sell ////
+		//// buy back (bear exit) ////
 		cpw.Start()
-		highestPrice := buyPrice // track highest price for trailing stop
+		lowestPrice := sellPrice // track lowest price for trailing stop
+		buyBackQty := roundFloat(qty*0.998, roundAmount)
 
 		for {
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
@@ -277,127 +277,127 @@ func BullTrade(
 			// print current price
 			printPrice(cpw, symbol, price, prevPrice, roundPrice)
 
-			// update highest price for trailing stop
-			if price > highestPrice {
-				highestPrice = price
+			// update lowest price for trailing stop
+			if price < lowestPrice {
+				lowestPrice = price
 			}
 
-			// trailing stop-loss: locks in profit once price moves favorably
+			// trailing stop (inverse for bear): locks in profit as price drops
 			if cfg.TrailingStop.Enabled {
-				activationPrice := buyPrice * (1 + cfg.TrailingStop.ActivationPct/100)
-				if highestPrice >= activationPrice {
-					trailingStopPrice := highestPrice * (1 - cfg.TrailingStop.TrailingPct/100)
-					if price <= trailingStopPrice {
-						sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, 1.0, roundPrice)
+				activationPrice := sellPrice * (1 - cfg.TrailingStop.ActivationPct/100)
+				if lowestPrice <= activationPrice {
+					trailingStopPrice := lowestPrice * (1 + cfg.TrailingStop.TrailingPct/100)
+					if price >= trailingStopPrice {
+						buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 						if err != nil {
-							log.Fatalf("error creating Trailing-Stop SELL order with amount %f: %s\n",
-								roundFloat(qty*0.998, roundAmount), err)
+							log.Fatalf("error creating Trailing-Stop BUY order with amount %f: %s\n",
+								buyBackQty, err)
 						}
-						sellOrder := reflect.ValueOf(sell).Elem()
-						orderId := sellOrder.FieldByName("OrderId").Int()
+						buyOrder := reflect.ValueOf(buy).Elem()
+						orderId := buyOrder.FieldByName("OrderId").Int()
 
 						fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-							time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP SELL"), qty, scoin, white(price), dcoin, price*qty)
+							time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
 
 						if getor, err := GetOrder(ticker, orderId); err == nil {
 							fmt.Printf("%s %s order created. Id: %d - Status: %s\n",
-								time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP SELL"), getor.OrderId, getor.Status)
+								time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"), getor.OrderId, getor.Status)
 						}
 
 						for {
 							if getor, err := GetOrder(ticker, orderId); err == nil {
 								if getor.Status == "FILLED" {
-									fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP SELL"))
+									fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"))
 									break
 								}
 							}
 							time.Sleep(10 * time.Second)
 						}
-						break // sold (trailing stop)
+						break // bought back (trailing stop)
 					}
 				}
 			}
 
-			// fixed stop loss
-			stopLossPrice := buyPrice * (1 - stopLoss/100)
-			if price <= stopLossPrice {
-				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, 1.0, roundPrice)
+			// stop loss: price goes UP (losing money in bear position)
+			stopLossPrice := sellPrice * (1 + stopLoss/100)
+			if price >= stopLossPrice {
+				buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating Stop-Loss SELL order with amount %f: %s\n",
-						roundFloat(qty*0.998, roundAmount), err)
+					log.Fatalf("error creating Stop-Loss BUY order with amount %f: %s\n",
+						buyBackQty, err)
 				}
-				sellOrder := reflect.ValueOf(sell).Elem()
-				orderId := sellOrder.FieldByName("OrderId").Int()
+				buyOrder := reflect.ValueOf(buy).Elem()
+				orderId := buyOrder.FieldByName("OrderId").Int()
 
 				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(price), dcoin, price*qty)
+					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
 					fmt.Printf("%s %s order created. Id: %d - Status: %s\n",
-						time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS SELL"), getor.OrderId, getor.Status)
+						time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS BUY"), getor.OrderId, getor.Status)
 				}
-				for { // looking at sell order until is filled
+				for { // looking at buy order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS SELL"))
-							break // sell filled
+							fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS BUY"))
+							break // buy filled
 						}
 					}
 					time.Sleep(10 * time.Second) // 10 secs to take another look
 				}
-				break // sold (stop loss)
+				break // bought back (stop loss)
 			}
 
-			// take profit with AI exit confirmation
-			profitPrice := buyPrice * (1 + takeProfit/100)
-			var aiSellApproved = true
-			if price >= profitPrice && aiOrch != nil {
+			// take profit with AI exit confirmation: price goes DOWN (making money in bear position)
+			profitPrice := sellPrice * (1 - takeProfit/100)
+			var aiBuyApproved = true
+			if price <= profitPrice && aiOrch != nil {
 				snapshot := &ai.TechnicalSnapshot{
 					Symbol:    symbol,
 					Price:     price,
 					PrevPrice: prevPrice,
 					RSI:       rsi[len(rsi)-1],
-					Tendency:  "sell-exit",
+					Tendency:  "buy-exit",
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				consensus, err := aiOrch.Analyze(ctx, snapshot, "BULL")
+				consensus, err := aiOrch.Analyze(ctx, snapshot, "BEAR")
 				cancel()
 				if err != nil {
-					log.Printf("AI sell analysis error: %v\n", err)
+					log.Printf("AI buy-back analysis error: %v\n", err)
 				} else {
 					fmt.Print(consensus.String())
-					aiSellApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
+					aiBuyApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
-			if price >= profitPrice && // price reach take profit percentage
-				rsi[len(rsi)-1] < rsi[len(rsi)-2] && // and rsi turns down
-				aiSellApproved { // AI supports exit
-				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
+			if price <= profitPrice && // price dropped to take profit level
+				rsi[len(rsi)-1] > rsi[len(rsi)-2] && // and rsi turns up (exit signal)
+				aiBuyApproved { // AI supports exit
+				buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating SELL order with amount %f: %s\n",
-						roundFloat(qty*0.998, roundAmount), err)
+					log.Fatalf("error creating BUY order with amount %f: %s\n",
+						buyBackQty, err)
 				}
-				sellOrder := reflect.ValueOf(sell).Elem()
-				orderId := sellOrder.FieldByName("OrderId").Int()
+				buyOrder := reflect.ValueOf(buy).Elem()
+				orderId := buyOrder.FieldByName("OrderId").Int()
 
 				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(price), dcoin, price*qty)
+					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Printf("%s SELL order created. Id: %d - Status: %s\n",
+					fmt.Printf("%s BUY order created. Id: %d - Status: %s\n",
 						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
 				}
 
-				for { // looking at sell order until is filled
+				for { // looking at buy order until is filled
 					if getor, err := GetOrder(ticker, orderId); err == nil {
 						if getor.Status == "FILLED" {
-							fmt.Printf("%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
-							break // sell filled
+							fmt.Printf("%s BUY order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
+							break // buy filled
 						}
 					}
 					time.Sleep(10 * time.Second) // 10 secs to take another look
 				}
-				break // sold
+				break // bought back (take profit)
 			}
 			time.Sleep(10 * time.Second)
 		}
