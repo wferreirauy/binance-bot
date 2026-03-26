@@ -4,6 +4,16 @@
 
 ![Captura desde 2024-12-07 03-23-41](https://github.com/user-attachments/assets/4d251761-ed43-4649-842f-fd016bc62532)
 
+## Features
+
+- **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
+- **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
+- **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus
+- **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
+- **Trailing Stop-Loss** — Dynamically locks in profits as price moves favorably
+- **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, VWAP, and volume confirmation
+- **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
+
 ## Download
 
 #### **Download Precompiled Binary**
@@ -46,28 +56,53 @@ Before using the Binance Trade Bot, you need to configure your environment with 
    export BINANCE_SECRET_KEY=<your-secret-key>
    ```
 
-3. **Create a config file**
-   You can specify a custom configuration file to adjust the bot’s parameters of trading indincators. <br />
+3. **Set AI Provider API Keys (optional)**
+   To enable the AI multi-agent system, export one or more of the following API keys. The system works with any combination — you can use 1, 2, or all 3 providers:
+
+   ```bash
+   export OPENAI_API_KEY=<your-openai-api-key>
+   export DEEPSEEK_API_KEY=<your-deepseek-api-key>
+   export ANTHROPIC_API_KEY=<your-anthropic-api-key>
+   ```
+
+   | Variable | Provider | Default Model |
+   |----------|----------|---------------|
+   | `OPENAI_API_KEY` | OpenAI | `gpt-4o-mini` |
+   | `DEEPSEEK_API_KEY` | DeepSeek | `deepseek-chat` |
+   | `ANTHROPIC_API_KEY` | Claude | `claude-3-5-haiku-20241022` |
+
+   > If no AI keys are set, the bot runs entirely on technical indicators — AI is fully optional.
+
+4. **Create a config file**
+   You can specify a custom configuration file to adjust the bot's parameters of trading indicators. <br />
    See the [sample configuration file](/sample-binance-config.yml).
 
 #### Now you're ready to use the Binance Trade Bot! 🎉
 
 ### Run the Bot
 
-To start the bot, use the following **example command**:
+#### Bull Trade (uptrending markets)
 
 ```bash
 binance-bot -f binance-config.yml bull-trade -t "XRP/USDT" -a 50 -sl 1.5 -tp 2.0 -b 0.9998 -s 1.0003 -rp 4 -ra 0
 ```
 
-#### Example bull-trade Command Details
+This example:
+- Trades the pair `XRP/USDT` with an amount of `50`.
+- Sets a stop-loss of `1.5%` and a take-profit of `2%`.
+- Adjusts buy and sell factors for the LIMIT order target price.
+- Rounds the price to 4 decimals and the amount to 0 decimals.
 
-The example above demonstrates a configuration with:
-- Trading the pair `XRP/USDT`.
-- Trading an amount of `50`.
-- A stop-loss of `1.5%` and a take-profit of `2%`.
-- Adjusted buy and sell factors for the LIMIT order target price.
-- Rounded the price to 4 decimals and the amount to 0 decimals.
+#### Bear Trade (downtrending markets)
+
+```bash
+binance-bot -f binance-config.yml bear-trade -t "BTC/USDT" -a 0.001 -sl 2.0 -tp 3.0 -b 0.9998 -s 1.0003 -rp 2 -ra 5
+```
+
+This example:
+- Sells `0.001 BTC` when bearish signals are detected.
+- Sets a stop-loss of `2%` (price rises above entry) and take-profit of `3%` (price drops below entry).
+- Buys back at a lower price to capture the difference as profit.
 
 Modify these parameters based on your specific trading requirements.
 
@@ -75,18 +110,20 @@ Modify these parameters based on your specific trading requirements.
 
 #### Explanation of Command Arguments
 
+These arguments apply to both `bull-trade` and `bear-trade` commands:
+
 | Option               | Short | Description                                                                                 | Default       |
 |----------------------|-------|---------------------------------------------------------------------------------------------|---------------|
 | `--ticker`           | `-t`  | The trading pair ticker in the format `ABC/USD` (e.g., `BTC/USDT`).                         | **Required**  |
-| `--amount`           | `-a`  | Amount to trade.                                                                            | `0`           |
+| `--amount`           | `-a`  | Amount to trade.                                                                            | **Required**  |
 | `--stop-loss`        | `-sl` | Stop-loss percentage (e.g., `1.5` for 1.5%).                                                | `3`           |
 | `--take-profit`      | `-tp` | Take-profit percentage (e.g., `3.0` for 3%).                                                | `2.5`         |
 | `--buy-factor`       | `-b`  | Factor to determine the target price for a LIMIT buy order.                                 | `0.9999`      |
 | `--sell-factor`      | `-s`  | Factor to determine the target price for a LIMIT sell order.                                | `1.0001`      |
-| `--round-price`      | `--p` | Decimal precision for rounding price values.                                                | `0`           |
-| `--round-amount`     | `-ra` | Decimal precision for rounding amount values.                                               | `0`           |
+| `--round-price`      | `-rp` | Decimal precision for rounding price values.                                                | **Required**  |
+| `--round-amount`     | `-ra` | Decimal precision for rounding amount values.                                               | **Required**  |
 | `--operations`       | `-o`  | Number of operations to execute during the trading session.                                 | `100`         |
-| `--help`             | `-h`  | Show help for the `bull-trade` command.                                                     | -             |
+| `--help`             | `-h`  | Show help for the command.                                                                  | -             |
 
 ### Help Commands
 
@@ -110,8 +147,9 @@ Modify these parameters based on your specific trading requirements.
      Walter Ferreira <wferreirauy@gmail.com>
 
   COMMANDS:
-     bull-trade, bt  Start a bull trade run
-     help, h         Shows a list of commands or help for one command
+     bull-trade, bt   Start a bull trade run
+     bear-trade, brt  Start a bear trade run (sell high, buy back low)
+     help, h          Shows a list of commands or help for one command
 
   GLOBAL OPTIONS:
      --config-file FILE, -f FILE  Load configuration from FILE (default: $HOME/binance-config.yml)
@@ -124,26 +162,96 @@ Modify these parameters based on your specific trading requirements.
   binance-bot bull-trade --help
   ```
 
-  Output:
+- For help with the `bear-trade` command:
+  ```bash
+  binance-bot bear-trade --help
   ```
-  NAME:
-     binance-bot bull-trade - Start a bull trade run
 
-  USAGE:
-     binance-bot bull-trade [command options]
+---
 
-  OPTIONS:
-     --ticker value, -t value          ticker to trade, format ABC/USD eg. BTC/USDT
-     --amount value, -a value          how much to trade (default: 0)
-     --stop-loss value, -sl value     Stop-Loss percentage float, eg. 3.0 (default: 3)
-     --take-profit value, -tp value   Take profit percentage float, eg. 2.5 (default: 2.5)
-     --buy-factor value, -b value      target factor for LIMIT buy (default: 0.9999)
-     --sell-factor value, -s value     target factor for LIMIT sell (default: 1.0001)
-     --round-price value, -rp value   price decimals round (default: 0)
-     --round-amount value, -ra value  amount decimals round (default: 0)
-     --operations value, -o value      number of operations (default: 100)
-     --help, -h                        show help
-  ```
+## Configuration
+
+The bot is configured through a YAML file. See [sample-binance-config.yml](/sample-binance-config.yml) for a complete example.
+
+### Indicators Configuration
+
+```yaml
+historical-prices:
+  period: 100           # number of candlesticks to fetch
+  interval: "1m"        # candlestick interval (1m, 3m, 5m, 15m, 1h, etc.)
+
+tendency:
+  interval: "3m"        # interval for tendency calculation
+  direction: "up"       # expected direction for bull-trade
+
+indicators:
+  rsi:
+    interval: "5m"
+    length: 14
+    upper-limit: 70     # overbought threshold
+    middle-limit: 50
+    lower-limit: 30     # oversold threshold
+  dema:
+    length: 9
+  macd:
+    fast-length: 12
+    slow-length: 26
+    signal-length: 9
+  bollinger-bands:
+    length: 20
+    multiplier: 2.0
+  atr:
+    period: 14          # Average True Range for volatility
+  adx:
+    period: 14
+    threshold: 25       # minimum ADX value to confirm trend strength
+  volume:
+    ma-period: 20       # volume moving average period
+```
+
+### Trailing Stop Configuration
+
+The trailing stop-loss dynamically adjusts to lock in profits as the price moves favorably:
+
+```yaml
+trailing-stop:
+  enabled: true
+  activation-pct: 1.5  # activate after price moves 1.5% in your favor
+  trailing-pct: 1.0    # trail by 1.0% from the peak/trough
+```
+
+- For **bull trades**: once the price rises by `activation-pct` above buy price, the stop tracks from the highest price and triggers if the price drops `trailing-pct` from that peak.
+- For **bear trades**: once the price drops by `activation-pct` below sell price, the stop tracks from the lowest price and triggers if the price rises `trailing-pct` from that trough.
+
+### AI Configuration
+
+The AI multi-agent system is optional. When enabled, it queries multiple LLM providers concurrently with technical indicators and market sentiment data to produce a consensus trading signal.
+
+```yaml
+ai:
+  enabled: true
+  providers:
+    openai:
+      model: "gpt-4o-mini"
+    deepseek:
+      model: "deepseek-chat"
+    claude:
+      model: "claude-3-5-haiku-20241022"
+  min-confidence: 0.5   # minimum consensus confidence to act (0.0 - 1.0)
+```
+
+**How it works:**
+1. Each configured provider receives a structured prompt with all technical indicators plus real-time sentiment data.
+2. Providers are queried **concurrently** for speed.
+3. Each agent returns a signal (`BUY`, `SELL`, or `HOLD`), a confidence score (0.0-1.0), and reasoning.
+4. A **weighted consensus** algorithm aggregates all votes to produce a final decision.
+5. The AI must approve (or at least not contradict) technical signals before trades are executed.
+
+**Sentiment sources (free, no API key required):**
+- **CryptoCompare** — latest news headlines for the traded coin
+- **Alternative.me Fear & Greed Index** — overall crypto market mood
+
+> Set `ai.enabled: false` or omit all provider API keys to disable AI and run on technical indicators only.
 
 ---
 
@@ -151,34 +259,68 @@ Modify these parameters based on your specific trading requirements.
 
 ### Bull-Trade
 
-The `bull-trade` command is specifically designed to operate during **bull market trends**, leveraging upward momentum to execute profitable trades. It is optimized for market conditions where prices are generally increasing, making it less effective during bearish or sideways markets.
-
+The `bull-trade` command is designed to operate during **bull market trends**, leveraging upward momentum to execute profitable trades.
 
 #### **Buy Conditions**
-The bot will place a buy order when these conditions are met
-1. **Relative Strength Index (RSI)**:
-   - The RSI value must be **less than 70**, indicating that the market is not overbought.
+The bot will place a buy order when **all** of these conditions are met:
 
-2. **MACD Crossover**:
-   - A buy signal is generated when the **MACD line crosses above the Signal line**, suggesting upward momentum.
-
-3. **DEMA & EMA Confirmation**:
-   - The market is considered to have an upward trend when the **15-period Double Exponential Moving Average (DEMA)** is **above** the **15-period Exponential Moving Average (EMA)**.
-
-4. **DEMA Proximity to Bollinger Bands**:
-   - A buy signal is favored when the current DEMA is closer to the Lower Bollinger Band than to the Upper Bollinger Band, suggesting a potential reversal from oversold conditions.
+1. **RSI**: Value is below the configured `upper-limit` (default 70), indicating the market is not overbought.
+2. **MACD Crossover**: The MACD line crosses above the Signal line, suggesting upward momentum.
+3. **Tendency Confirmation**: The trend direction matches the configured direction (DEMA above EMA = "up").
+4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
+5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
+6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average, avoiding false breakouts.
+7. **AI Consensus** *(if enabled)*: The multi-agent system approves the entry or does not contradict it.
 
 #### **Sell Conditions**
-The bot will place a sell order when these conditions are met
-1. **Take Profit Factor**:
-    - The price reaches the **take-profit percentage** specified in the command.
-    - The **MACD line crosses below the Signal line**, indicating potential downward momentum.
-2. **Stop Loss Factor**:
-   - The price drops to the **stop-loss percentage** specified in the command.
+The bot will exit a position through one of three mechanisms:
+
+1. **Trailing Stop-Loss** *(if enabled)*: After the price rises by `activation-pct` above buy price, the stop trails from the highest price. Triggers when price drops by `trailing-pct` from the peak.
+2. **Fixed Stop-Loss**: The price drops to the stop-loss percentage below buy price. Executes immediately (no AI delay on protective exits).
+3. **Take Profit**: The price reaches the take-profit percentage AND the RSI turns downward AND the AI supports the exit (if enabled).
 
 ---
 
-This strategy combines momentum indicators, trend confirmation, and predefined risk/reward factors to maximize trading opportunities during bull market conditions. However, the strategy is not designed to handle bearish or flat market trends and may result in losses under such conditions.
+### Bear-Trade
+
+The `bear-trade` command is designed to operate during **bear market trends**, profiting from downward price movement by selling high and buying back low.
+
+#### **Sell Entry Conditions**
+The bot will open a short position (sell) when **all** of these conditions are met:
+
+1. **RSI**: Value is above the configured `lower-limit` (default 30), indicating the market is not oversold.
+2. **MACD Crossover**: The MACD line crosses below the Signal line, suggesting downward momentum.
+3. **Tendency**: The trend direction is "down" (DEMA below EMA).
+4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Upper Band than the Lower Band, suggesting a potential reversal from overbought conditions.
+5. **ADX Trend Strength** *(if configured)*: ADX confirms the trend has strength.
+6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average.
+7. **AI Consensus** *(if enabled)*: The multi-agent system approves the entry.
+
+#### **Buy-Back Exit Conditions**
+The bot will exit the bear position (buy back) through one of three mechanisms:
+
+1. **Trailing Stop** *(if enabled)*: After the price drops by `activation-pct` below sell price, the stop trails from the lowest price. Triggers when price rises by `trailing-pct` from the trough.
+2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price. Executes immediately.
+3. **Take Profit**: The price drops to the take-profit percentage AND the RSI turns upward AND the AI supports the exit (if enabled).
+
+---
+
+### AI Multi-Agent Decision Flow
+
+When AI is enabled, the decision flow operates as follows:
+
+```
+Technical Indicators ──┐
+                       ├──> AI Agents (concurrent) ──> Weighted Consensus ──> Trade Decision
+Sentiment Data ────────┘       │         │         │
+                          OpenAI    DeepSeek    Claude
+```
+
+- **Entry signals**: Technical conditions must pass first, then AI must approve (or at least HOLD).
+- **Stop-loss / trailing-stop exits**: Execute **immediately** without waiting for AI — safety first.
+- **Take-profit exits**: Require AI confirmation to avoid exiting too early in strong trends.
+
+---
 
 ⚠️ **Note:** Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
 
@@ -228,3 +370,14 @@ https://binance-docs.github.io/apidocs/spot/en/#general-info
 ### Binance GO library
 
 https://github.com/binance/binance-connector-go
+
+### AI Provider APIs
+
+- [OpenAI API](https://platform.openai.com/docs)
+- [DeepSeek API](https://platform.deepseek.com/api-docs)
+- [Anthropic Claude API](https://docs.anthropic.com/en/docs)
+
+### Sentiment Data Sources
+
+- [CryptoCompare News API](https://min-api.cryptocompare.com/) — Free, no API key required
+- [Alternative.me Fear & Greed Index](https://alternative.me/crypto/fear-and-greed-index/) — Free, no API key required
