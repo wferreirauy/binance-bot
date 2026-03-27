@@ -67,6 +67,7 @@ type Config struct {
 		} `yaml:"providers"`
 		MinConfidence float64 `yaml:"min-confidence"`
 	} `yaml:"ai"`
+	RefreshInterval int `yaml:"refresh-interval"`
 }
 
 func (c *Config) Read(filePath string) (*Config, error) {
