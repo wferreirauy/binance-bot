@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -18,10 +19,19 @@ type Dashboard struct {
 	aiPanel      *tview.TextView
 	ordersPanel  *tview.TextView
 
+	mainLayout   *tview.Flex
+
 	tradeMode    string
 	symbol       string
 	operation    int
 	phase        string // "SCANNING", "BUYING", "SELLING", etc.
+
+	// Countdown state
+	mu            sync.Mutex
+	priceText     string
+	refreshSecs   int
+	countdown     int
+	countdownStop chan struct{}
 }
 
 // NewDashboard creates a new TUI dashboard with multi-panel layout.
@@ -92,12 +102,18 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		AddItem(topRow, 0, 2, false).
 		AddItem(bottomRow, 0, 3, false)
 
+	d.mainLayout = mainLayout
 	d.app.SetRoot(mainLayout, true)
 
-	// Allow 'q' to quit
+	// Keyboard shortcuts
 	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Rune() == 'q' || event.Key() == tcell.KeyCtrlC {
 			d.app.Stop()
+			return nil
+		}
+		if event.Rune() == 'h' {
+			d.showHelp(mainLayout)
+			return nil
 		}
 		return event
 	})
@@ -114,6 +130,13 @@ func (d *Dashboard) Run() error {
 
 // Stop gracefully stops the TUI application.
 func (d *Dashboard) Stop() {
+	if d.countdownStop != nil {
+		select {
+		case <-d.countdownStop:
+		default:
+			close(d.countdownStop)
+		}
+	}
 	d.app.Stop()
 }
 
@@ -122,13 +145,83 @@ func (d *Dashboard) headerText() string {
 	if d.tradeMode == "BEAR" {
 		modeColor = "red"
 	}
-	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| Press [red]q[-] to quit",
+	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help",
 		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
 }
 
 func (d *Dashboard) updateHeader() {
 	d.app.QueueUpdateDraw(func() {
 		d.header.SetText(d.headerText())
+	})
+}
+
+func (d *Dashboard) showHelp(mainLayout *tview.Flex) {
+	help := tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextAlign(tview.AlignLeft)
+	help.SetBorder(true).
+		SetBorderColor(tcell.ColorGold).
+		SetTitle(" Keyboard Shortcuts ").
+		SetTitleColor(tcell.ColorGold)
+
+	help.SetText(
+		"[yellow::b]Key          Action[-]\n" +
+			"[white::b]q[-]            Quit the application\n" +
+			"[white::b]h[-]            Toggle this help popup\n" +
+			"[white::b]Ctrl+C[-]       Force quit\n" +
+			"\n" +
+			"[yellow::b]Panels[-]\n" +
+			"[cyan]Price[-]         Current price with change indicator\n" +
+			"[teal]Indicators[-]    RSI, MACD, Bollinger Bands, DEMA, ADX\n" +
+			"[mediumpurple]AI Agents[-]     Consensus from OpenAI, DeepSeek, Claude\n" +
+			"[orangered]Orders Log[-]    Trade execution and system messages\n" +
+			"\n" +
+			"[dimgray]Press [white::b]h[-][dimgray] or [white::b]Esc[-][dimgray] to close[-]")
+
+	// Center the help modal
+	modal := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(
+			tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(nil, 0, 1, false).
+				AddItem(help, 50, 0, true).
+				AddItem(nil, 0, 1, false),
+			15, 0, true).
+		AddItem(nil, 0, 1, false)
+
+	// Overlay modal on top of main layout
+	overlay := tview.NewPages().
+		AddPage("main", mainLayout, true, true).
+		AddPage("help", modal, true, true)
+
+	d.app.SetRoot(overlay, true)
+
+	// Override input to close help on h or Esc
+	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == 'h' || event.Key() == tcell.KeyEscape {
+			d.app.SetRoot(mainLayout, true)
+			d.restoreInputCapture()
+			return nil
+		}
+		if event.Rune() == 'q' || event.Key() == tcell.KeyCtrlC {
+			d.app.Stop()
+			return nil
+		}
+		return event
+	})
+}
+
+func (d *Dashboard) restoreInputCapture() {
+	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == 'q' || event.Key() == tcell.KeyCtrlC {
+			d.app.Stop()
+			return nil
+		}
+		if event.Rune() == 'h' {
+			d.showHelp(d.mainLayout)
+			return nil
+		}
+		return event
 	})
 }
 
@@ -162,10 +255,49 @@ type IndicatorData struct {
 	AvgVolume     float64
 }
 
+// SetRefreshInterval stores the polling interval and starts a 1-second
+// countdown ticker that updates the price panel between polls.
+func (d *Dashboard) SetRefreshInterval(interval time.Duration) {
+	d.mu.Lock()
+	d.refreshSecs = int(interval.Seconds())
+	d.countdown = d.refreshSecs
+	d.mu.Unlock()
+
+	d.countdownStop = make(chan struct{})
+	go d.runCountdown()
+}
+
+func (d *Dashboard) runCountdown() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-d.countdownStop:
+			return
+		case <-ticker.C:
+			d.mu.Lock()
+			if d.countdown > 0 {
+				d.countdown--
+			}
+			text := d.priceText
+			secs := d.countdown
+			d.mu.Unlock()
+
+			if text == "" {
+				continue
+			}
+			full := text + fmt.Sprintf("\n[dimgray]Next poll in [white::b]%ds[-]", secs)
+			d.app.QueueUpdateDraw(func() {
+				d.pricePanel.SetText(full)
+			})
+		}
+	}
+}
+
 // UpdatePrice updates the price panel with color-coded current price.
 func (d *Dashboard) UpdatePrice(price, prevPrice float64, round uint) {
 	now := time.Now().Format("15:04:05")
-	priceStr := fmt.Sprintf("%.*f", round, price)
+	priceStr := fmt.Sprintf("%g", price)
 
 	var colorTag string
 	var arrow string
@@ -189,8 +321,17 @@ func (d *Dashboard) UpdatePrice(price, prevPrice float64, round uint) {
 	text := fmt.Sprintf("\n[%s::b]%s %s[-]\n[gray]%s | %+.2f%%[-]",
 		colorTag, arrow, priceStr, now, change)
 
+	d.mu.Lock()
+	d.priceText = text
+	d.countdown = d.refreshSecs
+	d.mu.Unlock()
+
+	full := text
+	if d.refreshSecs > 0 {
+		full += fmt.Sprintf("\n[dimgray]Next poll in [white::b]%ds[-]", d.refreshSecs)
+	}
 	d.app.QueueUpdateDraw(func() {
-		d.pricePanel.SetText(text)
+		d.pricePanel.SetText(full)
 	})
 }
 
