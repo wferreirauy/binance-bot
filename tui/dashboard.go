@@ -72,7 +72,8 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 
 	// AI Agents panel
 	d.aiPanel = tview.NewTextView().
-		SetDynamicColors(true)
+		SetDynamicColors(true).
+		SetScrollable(true)
 	d.aiPanel.SetBorder(true).
 		SetBorderColor(tcell.ColorMediumPurple).
 		SetTitle(" AI Agents ").
@@ -489,12 +490,7 @@ func (d *Dashboard) UpdateAI(data *AIConsensusData) {
 			pColor, strings.ToUpper(agent.Provider), sColor, agent.Signal, agent.Confidence*100))
 		b.WriteString("\n")
 		if agent.Reasoning != "" {
-			// Truncate reasoning to fit panel
-			reasoning := agent.Reasoning
-			if len(reasoning) > 120 {
-				reasoning = reasoning[:117] + "..."
-			}
-			b.WriteString(fmt.Sprintf("   [gray::i]%s[-]\n", reasoning))
+			b.WriteString(fmt.Sprintf("   [gray::i]%s[-]\n", agent.Reasoning))
 		}
 	}
 
