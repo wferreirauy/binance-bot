@@ -13,15 +13,12 @@ import (
 	"time"
 
 	binance_connector "github.com/binance/binance-connector-go"
-	color "github.com/fatih/color"
-	"github.com/gosuri/uilive"
 	"github.com/wferreirauy/binance-bot/ai"
 	"github.com/wferreirauy/binance-bot/config"
+	"github.com/wferreirauy/binance-bot/tui"
 )
 
 // BearTrade implements a sell-high-buy-low strategy for bearish markets.
-// It sells the asset when bearish signals are detected, then buys back
-// at a lower price to profit from the price decline.
 func BearTrade(
 	configFile string,
 	symbol string,
@@ -41,8 +38,8 @@ func BearTrade(
 	if err != nil {
 		log.Fatal(err)
 	}
-	period := cfg.HistoricalPrices.Period     // length period for moving average
-	interval := cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
+	period := cfg.HistoricalPrices.Period
+	interval := cfg.HistoricalPrices.Interval
 
 	// refresh interval for price polling (default 10 seconds)
 	refreshSecs := cfg.RefreshInterval
@@ -54,14 +51,7 @@ func BearTrade(
 	// initialize binance api client
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
-	// define text colors
-	cyan := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-	red := color.New(color.FgHiRed, color.Bold).SprintFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
-	magenta := color.New(color.FgHiMagenta, color.Bold).SprintFunc()
-
-	// validate symbol in format 0-9A-Z/0-9A-Z
+	// validate symbol
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
 		log.Fatal("error parsing ticker: must match ^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$")
 	}
@@ -82,334 +72,291 @@ func BearTrade(
 			cfg.AI.Providers.DeepSeek.Model,
 			cfg.AI.Providers.Claude.Model,
 		)
-		if aiOrch.IsEnabled() {
-			fmt.Println(white("AI Agents:"), green("ENABLED"))
-		} else {
-			fmt.Println(white("AI Agents:"), red("No API keys found - running without AI"))
+		if !aiOrch.IsEnabled() {
 			aiOrch = nil
 		}
 	}
 
+	// initialize TUI dashboard
+	dash := tui.NewDashboard("BEAR", symbol)
+	if aiOrch != nil {
+		dash.LogInfo("AI Agents: [green]ENABLED[-]")
+	}
+
+	// run trade logic in a goroutine, TUI runs on main thread
+	go func() {
+		defer dash.Stop()
+		bearTradeLoop(dash, client, cfg, aiOrch, symbol, ticker, scoin, dcoin, qty, stopLoss, takeProfit, buyFactor, sellFactor, roundPrice, roundAmount, max_ops, period, interval, refreshInterval)
+	}()
+
+	if err := dash.Run(); err != nil {
+		log.Fatalf("TUI error: %v", err)
+	}
+}
+
+func bearTradeLoop(
+	dash *tui.Dashboard,
+	client *binance_connector.Client,
+	cfg *config.Config,
+	aiOrch *ai.Orchestrator,
+	symbol, ticker, scoin, dcoin string,
+	qty, stopLoss, takeProfit, buyFactor, sellFactor float64,
+	roundPrice, roundAmount, max_ops uint,
+	period int,
+	interval string,
+	refreshInterval time.Duration,
+) {
 	var sellPrice float64
 	var operation = 1
 
 	for range max_ops {
-		// set tui writers
-		cpw := uilive.New() // current price line writer
-		cpw.Start()
-
-		fmt.Println(white("Bear Operation"), cyan("#"+strconv.Itoa(operation)))
+		dash.SetOperation(operation)
 		qty = roundFloat(qty, roundAmount)
 
 		//// sell (bear entry) ////
+		dash.SetPhase("SCANNING SELL")
 		for {
-			// get historical OHLCV data
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
 			if err != nil {
-				log.Printf("Error getting historical OHLCV data with %s interval: %v\n", interval, err)
-				time.Sleep(10 * time.Second)
+				dash.LogError(fmt.Sprintf("OHLCV fetch: %v", err))
+				time.Sleep(refreshInterval)
 				continue
 			}
 
 			price := ohlcv.Closes[len(ohlcv.Closes)-1]
 			prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
+			dash.UpdatePrice(price, prevPrice, roundPrice)
 
-			// print current price
-			printPrice(cpw, symbol, price, prevPrice, roundPrice)
-
-			// indicators
-			// tendency "up" or "down"
+			// tendency
 			tendency, err := getTendency(client, ticker, cfg.Tendency.Interval, period)
 			if err != nil {
-				log.Printf("Error getting tendency: %v\n", err)
-				time.Sleep(10 * time.Second)
+				dash.LogError(fmt.Sprintf("Tendency: %v", err))
+				time.Sleep(refreshInterval)
 				continue
 			}
-			// dema
+
+			// indicators
 			dema := calculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
 			currentDema := dema[len(dema)-1]
-			// rsi
 			rsi := calculateRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length)
-			// macd
-			macdLine, signalLine := calculateMACD(
-				ohlcv.Closes,
-				cfg.Indicators.Macd.FastLength,
-				cfg.Indicators.Macd.SlowLength,
-				cfg.Indicators.Macd.SignalLength,
-			)
-			// bollingerbands
-			bb, err := CalculateBollingerBands(
-				ohlcv.Closes,
-				cfg.Indicators.BollingerBands.Length,
-				cfg.Indicators.BollingerBands.Multiplier,
-			)
+			macdLine, signalLine := calculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
+			bb, err := CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
 			if err != nil {
-				log.Printf("Error getting BollingerBands: %v\n", err)
+				dash.LogError(fmt.Sprintf("BollingerBands: %v", err))
 			}
 			lowerBand := bb.LowerBand[len(bb.LowerBand)-1]
 			upperBand := bb.UpperBand[len(bb.UpperBand)-1]
 			distanceToUpper := math.Abs(currentDema - upperBand)
 			distanceToLower := math.Abs(currentDema - lowerBand)
 
-			// adx - trend strength (passes through if not configured)
+			// MACD cross
+			macdCross := "BULLISH"
+			if macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] && macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] {
+				macdCross = "BEARISH"
+			}
+
+			// ADX
+			var adxVal float64
 			var adxStrong bool
 			if cfg.Indicators.Adx.Period > 0 {
 				adx := calculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
-				adxStrong = len(adx) == 0 || adx[len(adx)-1] > float64(cfg.Indicators.Adx.Threshold)
+				if len(adx) > 0 {
+					adxVal = adx[len(adx)-1]
+				}
+				adxStrong = len(adx) == 0 || adxVal > float64(cfg.Indicators.Adx.Threshold)
 			} else {
 				adxStrong = true
 			}
 
-			// volume confirmation (passes through if not configured)
+			// Volume
+			var currentVolume, avgVolume float64
 			var volumeConfirmed bool
 			if cfg.Indicators.Volume.MaPeriod > 0 {
 				volumeMA := calculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
-				currentVolume := ohlcv.Volumes[len(ohlcv.Volumes)-1]
-				volumeConfirmed = len(volumeMA) == 0 || currentVolume > volumeMA[len(volumeMA)-1]
+				currentVolume = ohlcv.Volumes[len(ohlcv.Volumes)-1]
+				if len(volumeMA) > 0 {
+					avgVolume = volumeMA[len(volumeMA)-1]
+				}
+				volumeConfirmed = len(volumeMA) == 0 || currentVolume > avgVolume
 			} else {
 				volumeConfirmed = true
 			}
 
-			// AI analysis (if enabled)
+			// Update indicators panel
+			dash.UpdateIndicators(&tui.IndicatorData{
+				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
+				MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
+				DEMA: currentDema, UpperBand: upperBand, LowerBand: lowerBand,
+				Tendency: tendency, ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
+				Volume: currentVolume, AvgVolume: avgVolume,
+			})
+
+			// AI analysis
 			var aiApproved = true
 			if aiOrch != nil {
 				snapshot := &ai.TechnicalSnapshot{
-					Symbol:         symbol,
-					Price:          price,
-					PrevPrice:      prevPrice,
-					RSI:            rsi[len(rsi)-1],
-					MACDLine:       macdLine[len(macdLine)-1],
-					SignalLine:     signalLine[len(signalLine)-1],
-					PrevMACDLine:   macdLine[len(macdLine)-2],
-					PrevSignalLine: signalLine[len(signalLine)-2],
-					UpperBand:      upperBand,
-					LowerBand:      lowerBand,
-					DEMA:           currentDema,
-					Tendency:       tendency,
+					Symbol: symbol, Price: price, PrevPrice: prevPrice,
+					RSI: rsi[len(rsi)-1], MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1],
+					PrevMACDLine: macdLine[len(macdLine)-2], PrevSignalLine: signalLine[len(signalLine)-2],
+					UpperBand: upperBand, LowerBand: lowerBand, DEMA: currentDema, Tendency: tendency,
+					ADX: adxVal, Volume: currentVolume, AvgVolume: avgVolume,
 				}
-				if cfg.Indicators.Adx.Period > 0 {
-					adxVals := calculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
-					if len(adxVals) > 0 {
-						snapshot.ADX = adxVals[len(adxVals)-1]
-					}
-				}
-				if cfg.Indicators.Volume.MaPeriod > 0 {
-					volumeMA := calculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
-					snapshot.Volume = ohlcv.Volumes[len(ohlcv.Volumes)-1]
-					if len(volumeMA) > 0 {
-						snapshot.AvgVolume = volumeMA[len(volumeMA)-1]
-					}
-				}
-
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				consensus, err := aiOrch.Analyze(ctx, snapshot, "BEAR")
 				cancel()
 				if err != nil {
-					log.Printf("AI analysis error: %v\n", err)
+					dash.LogError(fmt.Sprintf("AI: %v", err))
 				} else {
-					fmt.Print(consensus.String())
+					updateDashAI(dash, consensus)
 					aiApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
 
-			// when to sell (bear entry): inverse of bull buy conditions
-			if rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) && // RSI above lower limit
+			// when to sell (bear entry)
+			if rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) &&
 				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] && // MACD crosses below signal
-				tendency == "down" && // bearish tendency
-				distanceToUpper < distanceToLower && // dema closer to upper band
-				adxStrong && // trend has strength
-				volumeConfirmed && // volume above average
-				aiApproved { // AI consensus supports entry
+				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] &&
+				tendency == "down" &&
+				distanceToUpper < distanceToLower &&
+				adxStrong && volumeConfirmed && aiApproved {
+
+				dash.SetPhase("SELLING")
 				sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating SELL order: %s\n", err)
+					dash.LogError(fmt.Sprintf("SELL order failed: %v", err))
+					return
 				}
 				sellOrder := reflect.ValueOf(sell).Elem()
 				orderId := sellOrder.FieldByName("OrderId").Int()
 				orderPrice := sellOrder.FieldByName("Price").String()
-				sellPrice, err = strconv.ParseFloat(orderPrice, 64)
-				if err != nil {
-					log.Printf("could not convert price on sell order to float: %s\n", err)
-				}
+				sellPrice, _ = strconv.ParseFloat(orderPrice, 64)
 
-				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), red("SELL"), qty, scoin, white(sellPrice), dcoin, sellPrice*qty)
+				dash.LogOrder(fmt.Sprintf("[red::b]SELL[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
+					qty, scoin, roundPrice, sellPrice, dcoin, roundPrice, sellPrice*qty, dcoin))
 
 				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Printf("%s SELL order created. Id: %d - Status: %s\n",
-						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
+					dash.LogInfo(fmt.Sprintf("SELL order #%d - Status: %s", getor.OrderId, getor.Status))
 				}
 
-				for { // looking at sell order until is filled
-					if getor, err := GetOrder(ticker, orderId); err == nil {
-						if getor.Status == "FILLED" {
-							fmt.Printf("%s SELL order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
-							break // sell filled
-						}
-					}
-					time.Sleep(refreshInterval)
-				}
-				break // indicators conditions met
+				waitOrderFilled(dash, ticker, orderId, "[red::b]SELL[-] order filled!", refreshInterval)
+				break
 			}
-
 			time.Sleep(refreshInterval)
 		}
-		cpw.Stop()
-		time.Sleep(30 * time.Second) // sleep before start buying process
+
+		time.Sleep(30 * time.Second)
 
 		//// buy back (bear exit) ////
-		cpw.Start()
-		lowestPrice := sellPrice // track lowest price for trailing stop
+		dash.SetPhase("MONITORING BUY-BACK")
+		lowestPrice := sellPrice
 		buyBackQty := roundFloat(qty*0.998, roundAmount)
 
 		for {
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
 			if err != nil {
-				log.Printf("Error getting historical OHLCV data with %s interval: %v\n", interval, err)
-				time.Sleep(10 * time.Second)
+				dash.LogError(fmt.Sprintf("OHLCV fetch: %v", err))
+				time.Sleep(refreshInterval)
 				continue
 			}
 			rsiprices, err := getHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
 			if err != nil {
-				log.Printf("Error getting historical prices with %s interval: %v\n", cfg.Indicators.Rsi.Interval, err)
-				time.Sleep(10 * time.Second)
+				dash.LogError(fmt.Sprintf("RSI prices: %v", err))
+				time.Sleep(refreshInterval)
 				continue
 			}
 
 			price := ohlcv.Closes[len(ohlcv.Closes)-1]
 			prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
 			rsi := calculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
+			dash.UpdatePrice(price, prevPrice, roundPrice)
 
-			// print current price
-			printPrice(cpw, symbol, price, prevPrice, roundPrice)
+			// update indicators with P&L
+			pnl := (sellPrice - price) / sellPrice * 100
+			dash.UpdateIndicators(&tui.IndicatorData{
+				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
+				Tendency: fmt.Sprintf("P&L: %+.2f%%", pnl),
+			})
 
-			// update lowest price for trailing stop
 			if price < lowestPrice {
 				lowestPrice = price
 			}
 
-			// trailing stop (inverse for bear): locks in profit as price drops
+			// trailing stop (inverse for bear)
 			if cfg.TrailingStop.Enabled {
 				activationPrice := sellPrice * (1 - cfg.TrailingStop.ActivationPct/100)
 				if lowestPrice <= activationPrice {
 					trailingStopPrice := lowestPrice * (1 + cfg.TrailingStop.TrailingPct/100)
 					if price >= trailingStopPrice {
+						dash.SetPhase("TRAILING STOP")
 						buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 						if err != nil {
-							log.Fatalf("error creating Trailing-Stop BUY order with amount %f: %s\n",
-								buyBackQty, err)
+							dash.LogError(fmt.Sprintf("Trailing-Stop BUY failed: %v", err))
+							return
 						}
 						buyOrder := reflect.ValueOf(buy).Elem()
 						orderId := buyOrder.FieldByName("OrderId").Int()
-
-						fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-							time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
-
-						if getor, err := GetOrder(ticker, orderId); err == nil {
-							fmt.Printf("%s %s order created. Id: %d - Status: %s\n",
-								time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"), getor.OrderId, getor.Status)
-						}
-
-						for {
-							if getor, err := GetOrder(ticker, orderId); err == nil {
-								if getor.Status == "FILLED" {
-									fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), magenta("TRAILING-STOP BUY"))
-									break
-								}
-							}
-							time.Sleep(refreshInterval)
-						}
-						break // bought back (trailing stop)
+						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP BUY[-] %f %s @ [white::b]%.*f[-] %s",
+							buyBackQty, scoin, roundPrice, price, dcoin))
+						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP BUY[-] filled!", refreshInterval)
+						break
 					}
 				}
 			}
 
-			// stop loss: price goes UP (losing money in bear position)
+			// stop loss: price goes UP
 			stopLossPrice := sellPrice * (1 + stopLoss/100)
 			if price >= stopLossPrice {
+				dash.SetPhase("STOP LOSS")
 				buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating Stop-Loss BUY order with amount %f: %s\n",
-						buyBackQty, err)
+					dash.LogError(fmt.Sprintf("Stop-Loss BUY failed: %v", err))
+					return
 				}
 				buyOrder := reflect.ValueOf(buy).Elem()
 				orderId := buyOrder.FieldByName("OrderId").Int()
-
-				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
-
-				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Printf("%s %s order created. Id: %d - Status: %s\n",
-						time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS BUY"), getor.OrderId, getor.Status)
-				}
-				for { // looking at buy order until is filled
-					if getor, err := GetOrder(ticker, orderId); err == nil {
-						if getor.Status == "FILLED" {
-							fmt.Printf("%s %s order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"), red("STOP-LOSS BUY"))
-							break // buy filled
-						}
-					}
-					time.Sleep(refreshInterval)
-				}
-				break // bought back (stop loss)
+				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS BUY[-] %f %s @ [white::b]%.*f[-] %s",
+					buyBackQty, scoin, roundPrice, price, dcoin))
+				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS BUY[-] filled!", refreshInterval)
+				break
 			}
 
-			// take profit with AI exit confirmation: price goes DOWN (making money in bear position)
+			// take profit with AI exit confirmation
 			profitPrice := sellPrice * (1 - takeProfit/100)
 			var aiBuyApproved = true
 			if price <= profitPrice && aiOrch != nil {
 				snapshot := &ai.TechnicalSnapshot{
-					Symbol:    symbol,
-					Price:     price,
-					PrevPrice: prevPrice,
-					RSI:       rsi[len(rsi)-1],
-					Tendency:  "buy-exit",
+					Symbol: symbol, Price: price, PrevPrice: prevPrice,
+					RSI: rsi[len(rsi)-1], Tendency: "buy-exit",
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				consensus, err := aiOrch.Analyze(ctx, snapshot, "BEAR")
 				cancel()
 				if err != nil {
-					log.Printf("AI buy-back analysis error: %v\n", err)
+					dash.LogError(fmt.Sprintf("AI buy-back: %v", err))
 				} else {
-					fmt.Print(consensus.String())
+					updateDashAI(dash, consensus)
 					aiBuyApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
-			if price <= profitPrice && // price dropped to take profit level
-				rsi[len(rsi)-1] > rsi[len(rsi)-2] && // and rsi turns up (exit signal)
-				aiBuyApproved { // AI supports exit
+			if price <= profitPrice && rsi[len(rsi)-1] > rsi[len(rsi)-2] && aiBuyApproved {
+				dash.SetPhase("TAKE PROFIT")
 				buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
 				if err != nil {
-					log.Fatalf("error creating BUY order with amount %f: %s\n",
-						buyBackQty, err)
+					dash.LogError(fmt.Sprintf("BUY order failed: %v", err))
+					return
 				}
 				buyOrder := reflect.ValueOf(buy).Elem()
 				orderId := buyOrder.FieldByName("OrderId").Int()
-
-				fmt.Printf("%s %s %f %s - PRICE: %s - Total %s: %f\n",
-					time.Now().Format("02/01/2006 15:04:05"), green("BUY"), buyBackQty, scoin, white(price), dcoin, price*buyBackQty)
-
-				if getor, err := GetOrder(ticker, orderId); err == nil {
-					fmt.Printf("%s BUY order created. Id: %d - Status: %s\n",
-						time.Now().Format("02/01/2006 15:04:05"), getor.OrderId, getor.Status)
-				}
-
-				for { // looking at buy order until is filled
-					if getor, err := GetOrder(ticker, orderId); err == nil {
-						if getor.Status == "FILLED" {
-							fmt.Printf("%s BUY order filled!\n\n", time.Now().Format("02/01/2006 15:04:05"))
-							break // buy filled
-						}
-					}
-					time.Sleep(refreshInterval)
-				}
-				break // bought back (take profit)
+				dash.LogOrder(fmt.Sprintf("[green::b]BUY[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
+					buyBackQty, scoin, roundPrice, price, dcoin, roundPrice, price*buyBackQty, dcoin))
+				waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval)
+				break
 			}
 			time.Sleep(refreshInterval)
 		}
-		cpw.Stop()
+
 		operation++
-		time.Sleep(1 * time.Minute) // 1 minute to start next operation
+		dash.LogInfo(fmt.Sprintf("Operation #%d complete. Next in 1 min...", operation-1))
+		time.Sleep(1 * time.Minute)
 	}
 }
