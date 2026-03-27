@@ -41,6 +41,13 @@ func BullTrade(
 	period := cfg.HistoricalPrices.Period     // length period for moving average
 	interval := cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
 
+	// refresh interval for price polling (default 10 seconds)
+	refreshSecs := cfg.RefreshInterval
+	if refreshSecs <= 0 {
+		refreshSecs = 10
+	}
+	refreshInterval := time.Duration(refreshSecs) * time.Second
+
 	// initialize binance api client
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
@@ -242,12 +249,12 @@ func BullTrade(
 							break // buy filled
 						}
 					}
-					time.Sleep(10 * time.Second) // 10 secs to take another look
+					time.Sleep(refreshInterval)
 				}
 				break // indicators conditions met
 			}
 
-			time.Sleep(10 * time.Second)
+			time.Sleep(refreshInterval)
 		}
 		cpw.Stop()
 		time.Sleep(30 * time.Second) // sleep before start selling process
@@ -311,7 +318,7 @@ func BullTrade(
 									break
 								}
 							}
-							time.Sleep(10 * time.Second)
+							time.Sleep(refreshInterval)
 						}
 						break // sold (trailing stop)
 					}
@@ -343,7 +350,7 @@ func BullTrade(
 							break // sell filled
 						}
 					}
-					time.Sleep(10 * time.Second) // 10 secs to take another look
+					time.Sleep(refreshInterval)
 				}
 				break // sold (stop loss)
 			}
@@ -395,11 +402,11 @@ func BullTrade(
 							break // sell filled
 						}
 					}
-					time.Sleep(10 * time.Second) // 10 secs to take another look
+					time.Sleep(refreshInterval)
 				}
 				break // sold
 			}
-			time.Sleep(10 * time.Second)
+			time.Sleep(refreshInterval)
 		}
 		cpw.Stop()
 		operation++

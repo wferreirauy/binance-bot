@@ -2,6 +2,7 @@
 historical-prices:
   period: 100
   interval: "1m"
+refresh-interval: 10  # seconds between price checks (default: 10)
 tendency:
   interval: "3m"
   direction: "up"
