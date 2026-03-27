@@ -102,7 +102,7 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		return event
 	})
 
-	d.updateHeader()
+	d.header.SetText(d.headerText())
 
 	return d
 }
@@ -117,15 +117,18 @@ func (d *Dashboard) Stop() {
 	d.app.Stop()
 }
 
-func (d *Dashboard) updateHeader() {
+func (d *Dashboard) headerText() string {
 	modeColor := "green"
 	if d.tradeMode == "BEAR" {
 		modeColor = "red"
 	}
-	text := fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| Press [red]q[-] to quit",
+	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| Press [red]q[-] to quit",
 		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
+}
+
+func (d *Dashboard) updateHeader() {
 	d.app.QueueUpdateDraw(func() {
-		d.header.SetText(text)
+		d.header.SetText(d.headerText())
 	})
 }
 

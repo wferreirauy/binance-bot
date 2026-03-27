@@ -78,13 +78,13 @@ func BullTrade(
 
 	// initialize TUI dashboard
 	dash := tui.NewDashboard("BULL", symbol)
-	if aiOrch != nil {
-		dash.LogInfo("AI Agents: [green]ENABLED[-]")
-	}
 
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
 		defer dash.Stop()
+		if aiOrch != nil {
+			dash.LogInfo("AI Agents: [green]ENABLED[-]")
+		}
 		bullTradeLoop(dash, client, cfg, aiOrch, symbol, ticker, scoin, dcoin, qty, stopLoss, takeProfit, buyFactor, sellFactor, roundPrice, roundAmount, max_ops, period, interval, refreshInterval)
 	}()
 
