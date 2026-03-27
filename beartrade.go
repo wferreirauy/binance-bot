@@ -83,6 +83,7 @@ func BearTrade(
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
 		defer dash.Stop()
+		dash.SetRefreshInterval(refreshInterval)
 		if aiOrch != nil {
 			dash.LogInfo("AI Agents: [green]ENABLED[-]")
 		}
