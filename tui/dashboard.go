@@ -73,7 +73,8 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 	// AI Agents panel
 	d.aiPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetScrollable(true)
+		SetScrollable(true).
+		SetWordWrap(true)
 	d.aiPanel.SetBorder(true).
 		SetBorderColor(tcell.ColorMediumPurple).
 		SetTitle(" AI Agents ").
@@ -496,6 +497,7 @@ func (d *Dashboard) UpdateAI(data *AIConsensusData) {
 
 	d.app.QueueUpdateDraw(func() {
 		d.aiPanel.SetText(b.String())
+		d.aiPanel.ScrollToBeginning()
 	})
 }
 
