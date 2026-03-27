@@ -21,7 +21,7 @@ func main() {
 
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.1.4",
+		Version:  "v0.1.5",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
