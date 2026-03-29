@@ -1,6 +1,6 @@
 # Binance Trade Bot
 
-<img width="1470" height="956" alt="Image" src="https://github.com/user-attachments/assets/bc3c2602-bac7-47a8-badf-7bd5987c9c4e" />
+![tui-screenshot](https://github.com/user-attachments/assets/bc3c2602-bac7-47a8-badf-7bd5987c9c4e)
 
 ![Captura desde 2024-12-07 03-23-41](https://github.com/user-attachments/assets/4d251761-ed43-4649-842f-fd016bc62532)
 
