@@ -1,6 +1,6 @@
 module github.com/wferreirauy/binance-bot
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/binance/binance-connector-go v0.7.0
