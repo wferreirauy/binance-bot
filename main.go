@@ -21,7 +21,7 @@ func main() {
 
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.2.6",
+		Version:  "v0.3.0",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -173,6 +173,15 @@ func main() {
 					BearTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
+					return nil
+				},
+			},
+			{
+				Name:    "top-gainers",
+				Usage:   "Monitor top market gainers in real-time",
+				Aliases: []string{"tg"},
+				Action: func(cCtx *cli.Context) error {
+					TopGainers(cCtx.String("config-file"))
 					return nil
 				},
 			},
