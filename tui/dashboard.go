@@ -101,8 +101,8 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(d.header, 3, 0, false).
-		AddItem(topRow, 0, 2, false).
-		AddItem(bottomRow, 0, 3, false)
+		AddItem(topRow, 0, 3, false).
+		AddItem(bottomRow, 0, 2, false)
 
 	d.mainLayout = mainLayout
 	d.app.SetRoot(mainLayout, true)
