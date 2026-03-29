@@ -90,13 +90,13 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		SetTitle(" Orders Log ").
 		SetTitleColor(tcell.ColorOrangeRed)
 
-	// Layout: header on top, then a row with [price | ai agents], then [indicators | orders]
+	// Layout: header on top, then a row with [indicators | ai agents], then [price | orders]
 	topRow := tview.NewFlex().SetDirection(tview.FlexColumn).
-		AddItem(d.pricePanel, 0, 1, false).
+		AddItem(d.indPanel, 0, 1, false).
 		AddItem(d.aiPanel, 0, 2, false)
 
 	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
-		AddItem(d.indPanel, 0, 1, false).
+		AddItem(d.pricePanel, 0, 1, false).
 		AddItem(d.ordersPanel, 0, 2, false)
 
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
