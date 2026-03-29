@@ -1,19 +1,30 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	binance_connector "github.com/binance/binance-connector-go"
 	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/tui"
 )
+
+// ticker24hrResult mirrors Binance's 24hr ticker response with int64 for
+// firstId/lastId to handle the -1 values the API may return.
+type ticker24hrResult struct {
+	Symbol             string `json:"symbol"`
+	PriceChangePercent string `json:"priceChangePercent"`
+	LastPrice          string `json:"lastPrice"`
+	Volume             string `json:"volume"`
+	QuoteVolume        string `json:"quoteVolume"`
+}
 
 // GainerEntry represents a single top-gainer ticker.
 type GainerEntry struct {
@@ -46,8 +57,6 @@ func TopGainers(configFile string) {
 	}
 	pollInterval := time.Duration(pollSecs) * time.Second
 
-	client := binance_connector.NewClient(apikey, secretkey, baseurl)
-
 	// build exclude set
 	excludeSet := make(map[string]bool)
 	for _, s := range cfg.TopGainers.ExcludeSymbols {
@@ -61,7 +70,7 @@ func TopGainers(configFile string) {
 		dash.LogInfo(fmt.Sprintf("Monitoring top %d gainers for %s (poll every %ds)", limit, quoteAsset, pollSecs))
 
 		for {
-			gainers, err := fetchTopGainers(client, quoteAsset, cfg.TopGainers.MinVolume, excludeSet, limit)
+			gainers, err := fetchTopGainers(quoteAsset, cfg.TopGainers.MinVolume, excludeSet, limit)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("Fetch failed: %v", err))
 			} else {
@@ -91,15 +100,28 @@ func TopGainers(configFile string) {
 // fetchTopGainers fetches 24hr tickers, filters by quote asset and volume,
 // then returns the top N sorted by price change percentage (descending).
 func fetchTopGainers(
-	client *binance_connector.Client,
 	quoteAsset string,
 	minVolume float64,
 	excludeSet map[string]bool,
 	limit int,
 ) ([]GainerEntry, error) {
-	tickers, err := client.NewTicker24hrService().Do(context.Background())
+	resp, err := http.Get(baseurl + "/api/v3/ticker/24hr")
 	if err != nil {
 		return nil, fmt.Errorf("24hr ticker: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("24hr ticker read: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("24hr ticker: HTTP %d", resp.StatusCode)
+	}
+
+	var tickers []ticker24hrResult
+	if err := json.Unmarshal(body, &tickers); err != nil {
+		return nil, fmt.Errorf("24hr ticker decode: %w", err)
 	}
 
 	var gainers []GainerEntry
