@@ -250,7 +250,7 @@ func bearTradeLoop(
 		//// buy back (bear exit) ////
 		dash.SetPhase("MONITORING BUY-BACK")
 		lowestPrice := sellPrice
-		buyBackQty := roundFloat(qty*0.998, roundAmount)
+		sellProceeds := sellPrice * qty
 
 		for {
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
@@ -289,6 +289,7 @@ func bearTradeLoop(
 					trailingStopPrice := lowestPrice * (1 + cfg.TrailingStop.TrailingPct/100)
 					if price >= trailingStopPrice {
 						dash.SetPhase("TRAILING STOP")
+						buyBackQty := roundFloat(sellProceeds/price, roundAmount)
 						buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 						if err != nil {
 							dash.LogError(fmt.Sprintf("Trailing-Stop BUY failed: %v", err))
@@ -308,6 +309,7 @@ func bearTradeLoop(
 			stopLossPrice := sellPrice * (1 + stopLoss/100)
 			if price >= stopLossPrice {
 				dash.SetPhase("STOP LOSS")
+				buyBackQty := roundFloat(sellProceeds/price, roundAmount)
 				buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("Stop-Loss BUY failed: %v", err))
@@ -341,6 +343,7 @@ func bearTradeLoop(
 			}
 			if price <= profitPrice && rsi[len(rsi)-1] > rsi[len(rsi)-2] && aiBuyApproved {
 				dash.SetPhase("TAKE PROFIT")
+				buyBackQty := roundFloat(sellProceeds/price, roundAmount)
 				buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("BUY order failed: %v", err))
