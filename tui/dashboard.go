@@ -16,6 +16,7 @@ type Dashboard struct {
 	header       *tview.TextView
 	pricePanel   *tview.TextView
 	indPanel     *tview.TextView
+	paramsPanel  *tview.TextView
 	aiPanel      *tview.TextView
 	ordersPanel  *tview.TextView
 
@@ -70,6 +71,14 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		SetTitle(" Indicators ").
 		SetTitleColor(tcell.ColorTeal)
 
+	// Parameters panel
+	d.paramsPanel = tview.NewTextView().
+		SetDynamicColors(true)
+	d.paramsPanel.SetBorder(true).
+		SetBorderColor(tcell.ColorDimGray).
+		SetTitle(" Parameters ").
+		SetTitleColor(tcell.ColorDimGray)
+
 	// AI Agents panel
 	d.aiPanel = tview.NewTextView().
 		SetDynamicColors(true).
@@ -90,9 +99,14 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		SetTitle(" Orders Log ").
 		SetTitleColor(tcell.ColorOrangeRed)
 
-	// Layout: header on top, then a row with [indicators | ai agents], then [price | orders]
+	// Left column: indicators on top, parameters below
+	leftCol := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(d.indPanel, 0, 3, false).
+		AddItem(d.paramsPanel, 0, 2, false)
+
+	// Layout: header on top, then [left column | ai agents], then [price | orders]
 	topRow := tview.NewFlex().SetDirection(tview.FlexColumn).
-		AddItem(d.indPanel, 0, 1, false).
+		AddItem(leftCol, 0, 1, false).
 		AddItem(d.aiPanel, 0, 2, false)
 
 	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -237,6 +251,33 @@ func (d *Dashboard) SetOperation(n int) {
 func (d *Dashboard) SetPhase(phase string) {
 	d.phase = phase
 	d.updateHeader()
+}
+
+// TradeParams holds the command-line parameters for display.
+type TradeParams struct {
+	Amount     float64
+	StopLoss   float64
+	TakeProfit float64
+	BuyFactor  float64
+	SellFactor float64
+	RoundPrice uint
+	RoundAmt   uint
+	MaxOps     uint
+}
+
+// SetParams populates the parameters panel with the current trade settings.
+func (d *Dashboard) SetParams(p *TradeParams) {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf(" [white::b]Amount:[:-]      [yellow]%g[-]\n", p.Amount))
+	b.WriteString(fmt.Sprintf(" [white::b]Stop-Loss:[:-]   [red]%.2f%%[-]\n", p.StopLoss))
+	b.WriteString(fmt.Sprintf(" [white::b]Take-Profit:[:-] [green]%.2f%%[-]\n", p.TakeProfit))
+	b.WriteString(fmt.Sprintf(" [white::b]Buy Factor:[:-]  [white]%g[-]\n", p.BuyFactor))
+	b.WriteString(fmt.Sprintf(" [white::b]Sell Factor:[:-] [white]%g[-]\n", p.SellFactor))
+	b.WriteString(fmt.Sprintf(" [white::b]Round:[:-]       [gray]price=%d amt=%d[-]\n", p.RoundPrice, p.RoundAmt))
+	b.WriteString(fmt.Sprintf(" [white::b]Max Ops:[:-]     [cyan]%d[-]", p.MaxOps))
+	d.app.QueueUpdateDraw(func() {
+		d.paramsPanel.SetText(b.String())
+	})
 }
 
 // IndicatorData holds indicator values for display.

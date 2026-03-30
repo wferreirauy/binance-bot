@@ -83,6 +83,11 @@ func BullTrade(
 	go func() {
 		defer dash.Stop()
 		dash.SetRefreshInterval(refreshInterval)
+		dash.SetParams(&tui.TradeParams{
+			Amount: qty, StopLoss: stopLoss, TakeProfit: takeProfit,
+			BuyFactor: buyFactor, SellFactor: sellFactor,
+			RoundPrice: roundPrice, RoundAmt: roundAmount, MaxOps: max_ops,
+		})
 		if aiOrch != nil {
 			dash.LogInfo("AI Agents: [green]ENABLED[-]")
 		}
