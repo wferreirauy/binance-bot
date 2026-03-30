@@ -68,6 +68,13 @@ type Config struct {
 		MinConfidence float64 `yaml:"min-confidence"`
 	} `yaml:"ai"`
 	RefreshInterval int `yaml:"refresh-interval"`
+	TopGainers struct {
+		QuoteAsset      string   `yaml:"quote-asset"`
+		Limit           int      `yaml:"limit"`
+		PollInterval    int      `yaml:"poll-interval"`
+		MinVolume       float64  `yaml:"min-volume"`
+		ExcludeSymbols  []string `yaml:"exclude-symbols"`
+	} `yaml:"top-gainers"`
 }
 
 func (c *Config) Read(filePath string) (*Config, error) {

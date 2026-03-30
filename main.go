@@ -176,6 +176,15 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:    "top-gainers",
+				Usage:   "Monitor top market gainers in real-time",
+				Aliases: []string{"tg"},
+				Action: func(cCtx *cli.Context) error {
+					TopGainers(cCtx.String("config-file"))
+					return nil
+				},
+			},
 		},
 	}
 
