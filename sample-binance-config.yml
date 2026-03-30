@@ -47,3 +47,12 @@ ai:
     claude:
       model: "claude-3-5-haiku-20241022"  # most affordable Claude
   min-confidence: 0.5              # minimum AI confidence to act on signal
+
+# Top gainers monitor configuration
+top-gainers:
+  quote-asset: "USDT"              # filter pairs ending with this asset
+  limit: 20                        # number of top gainers to display
+  poll-interval: 60                # seconds between each poll
+  min-volume: 1000000              # minimum 24h quote volume to include
+  exclude-symbols:                 # symbols to exclude from results
+    - "USDCUSDT"
