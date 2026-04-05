@@ -51,8 +51,8 @@ func BullTrade(
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
 
 	// validate symbol in format 0-9A-Z/0-9A-Z
-	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
-		log.Fatal("error parsing ticker: must match ^[0-9A-Z]{2,8}/[0-9A-Z]{2,8}$")
+	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{1,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
+		log.Fatal("error parsing ticker: must match ^[0-9A-Z]{1,8}/[0-9A-Z]{2,8}$")
 	}
 	scoin, dcoin, found := strings.Cut(symbol, "/")
 	if !found {
