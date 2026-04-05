@@ -78,7 +78,7 @@ func BearTrade(
 	}
 
 	// initialize TUI dashboard
-	dash := tui.NewDashboard("BEAR", symbol)
+	dash := tui.NewDashboard("BEAR", symbol, cfg)
 
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
