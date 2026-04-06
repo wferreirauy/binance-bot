@@ -80,6 +80,15 @@ func BearTrade(
 	// initialize TUI dashboard
 	dash := tui.NewDashboard("BEAR", symbol)
 
+	// initialize file logger
+	fl, err := tui.NewFileLogger("binance-bot.log")
+	if err != nil {
+		log.Printf("Warning: could not open log file: %v", err)
+	} else {
+		defer fl.Close()
+		dash.SetFileLogger(fl)
+	}
+
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
 		defer dash.Stop()
