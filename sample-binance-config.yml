@@ -34,6 +34,16 @@ trailing-stop:
   activation-pct: 1.5  # activate after 1.5% profit
   trailing-pct: 1.0    # trail by 1.0% from peak
 
+# Scalp mode: relaxed entry conditions for high-frequency micro-trading
+# When enabled, uses a scoring system (min-score out of 6 signals) instead of
+# requiring ALL entry conditions to be true simultaneously.
+scalp-mode:
+  enabled: false
+  min-score: 3           # minimum bullish signals out of 6 to trigger entry
+  post-buy-delay: 30     # seconds to wait after fill before exit monitoring
+  inter-op-delay: 60     # seconds to wait between completed operations
+  require-rsi-exit: true # require RSI declining/rising for take-profit
+
 # AI multi-agent configuration
 # API keys are read from environment variables:
 #   OPENAI_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY

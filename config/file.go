@@ -68,6 +68,13 @@ type Config struct {
 		MinConfidence float64 `yaml:"min-confidence"`
 	} `yaml:"ai"`
 	RefreshInterval int `yaml:"refresh-interval"`
+	ScalpMode struct {
+		Enabled          bool `yaml:"enabled"`
+		MinScore         int  `yaml:"min-score"`          // min bullish signals out of 6 to trigger entry
+		PostBuyDelay     int  `yaml:"post-buy-delay"`     // seconds to wait after buy fill before sell monitoring
+		InterOpDelay     int  `yaml:"inter-op-delay"`     // seconds to wait between operations
+		RequireRSIExit   bool `yaml:"require-rsi-exit"`   // require RSI declining for take-profit
+	} `yaml:"scalp-mode"`
 	TopGainers struct {
 		QuoteAsset      string   `yaml:"quote-asset"`
 		Limit           int      `yaml:"limit"`

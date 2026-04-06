@@ -1,0 +1,72 @@
+# Sample config for HIGH-FREQUENCY SCALP TRADING on volatile crypto tickers
+# Optimized for multiple micro-transactions per day (e.g. PEPE/USDT, SHIB/USDT, DOGE/USDT)
+#
+# CLI example:
+#   binance-bot bt -t PEPE/USDT -a 50 --sl 1.0 --tp 0.5 -b 0.9999 -s 1.0001 -rp 8 -ra 0 -o 500 -f scalp-config.yml
+
+historical-prices:
+  period: 50            # shorter lookback → faster indicator response
+  interval: "1m"        # 1-minute candles for rapid signals
+
+refresh-interval: 5     # poll every 5 seconds (was 10)
+
+tendency:
+  interval: "1m"        # fast tendency on 1m (was 3m)
+  direction: "up"
+
+indicators:
+  rsi:
+    interval: "1m"      # fast RSI timeframe (was 5m)
+    length: 7           # shorter RSI period = more reactive (was 14)
+    upper-limit: 65     # more permissive entry threshold (was 70)
+    middle-limit: 50
+    lower-limit: 35     # wider entry zone (was 30)
+  dema:
+    length: 5           # faster DEMA (was 9)
+  macd:
+    fast-length: 6      # faster MACD (was 12)
+    slow-length: 13     # (was 26)
+    signal-length: 5    # (was 9)
+  bollinger-bands:
+    length: 10          # tighter bands = more entry signals (was 20)
+    multiplier: 1.5     # narrower bands (was 2.0)
+  atr:
+    period: 7           # shorter ATR (was 14)
+  adx:
+    period: 7           # shorter ADX (was 14)
+    threshold: 15       # accept weaker trends (was 25)
+  volume:
+    ma-period: 10       # shorter volume MA (was 20)
+
+trailing-stop:
+  enabled: true
+  activation-pct: 0.5   # activate trail earlier (was 1.5%)
+  trailing-pct: 0.3     # tight trail from peak (was 1.0%)
+
+# Scalp mode: relaxed entry using scoring instead of all-conditions-must-match
+scalp-mode:
+  enabled: true
+  min-score: 3           # need 3 out of 6 bullish signals to enter (RSI, MACD, tendency, Bollinger position, ADX, volume)
+  post-buy-delay: 5      # seconds after fill before monitoring exit (was hardcoded 30s)
+  inter-op-delay: 10     # seconds between completed ops (was hardcoded 60s)
+  require-rsi-exit: false # don't require RSI declining for take-profit
+
+# AI — disable for maximum speed, or keep with low confidence threshold
+ai:
+  enabled: false
+  providers:
+    openai:
+      model: "gpt-4o-mini"
+    deepseek:
+      model: "deepseek-chat"
+    claude:
+      model: "claude-3-5-haiku-20241022"
+  min-confidence: 0.3
+
+top-gainers:
+  quote-asset: "USDT"
+  limit: 20
+  poll-interval: 30
+  min-volume: 5000000    # higher volume filter for liquid scalp targets
+  exclude-symbols:
+    - "USDCUSDT"
