@@ -7,11 +7,16 @@
 
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
+- **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
+- **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
 - **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
 - **Trailing Stop-Loss** — Dynamically locks in profits as price moves favorably
-- **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, VWAP, and volume confirmation
+- **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
+- **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
+- **Runtime Config Editor** — View and edit config values from inside the TUI without restarting (`c` / `e` keys)
+- **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
 ## Download
 
@@ -103,6 +108,26 @@ This example:
 - Sets a stop-loss of `2%` (price rises above entry) and take-profit of `3%` (price drops below entry).
 - Buys back at a lower price to capture the difference as profit.
 
+#### Scalp Mode (high-frequency micro-trading)
+
+```bash
+binance-bot -f sample-scalp-config.yml bull-trade -t "PEPE/USDT" -a 50 --sl 0.6 --tp 1.0 -b 0.9999 -s 1.0001 -rp 8 -ra 0 -o 500
+```
+
+This example:
+- Uses 1-minute candles and a scoring-based entry (any 3 of 6 signals bullish).
+- Sets tight stop-loss / take-profit suitable for volatile low-cap tokens.
+- Runs up to 500 operations with only 5s between them for maximum trade frequency.
+- See [sample-scalp-config.yml](/sample-scalp-config.yml) for the full config.
+
+#### Top Gainers Monitor
+
+```bash
+binance-bot -f binance-config.yml top-gainers
+```
+
+Launches a real-time TUI listing the top 24h price-change gainers on Binance, filtered by quote asset, minimum volume, and an exclude list. Refreshes on the configured `poll-interval`. Press `q` to quit.
+
 Modify these parameters based on your specific trading requirements.
 
 ---
@@ -140,7 +165,7 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.0.5
+     v0.4.2
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -148,6 +173,7 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
   COMMANDS:
      bull-trade, bt   Start a bull trade run
      bear-trade, brt  Start a bear trade run (sell high, buy back low)
+     top-gainers, tg  Monitor top market gainers in real-time
      help, h          Shows a list of commands or help for one command
 
   GLOBAL OPTIONS:
@@ -165,6 +191,23 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
   ```bash
   binance-bot bear-trade --help
   ```
+
+- For help with the `top-gainers` command:
+  ```bash
+  binance-bot top-gainers --help
+  ```
+
+### TUI Keyboard Shortcuts
+
+While the bot is running, the following keys are available inside the TUI:
+
+| Key | Action |
+|-----|--------|
+| `q` / `Ctrl+C` | Quit the application |
+| `h` | Toggle the help / keyboard shortcuts popup |
+| `c` | View current config values loaded from the config file |
+| `e` | Open the runtime config editor to change values without restarting |
+| `Esc` | Close any open popup |
 
 ---
 
@@ -222,6 +265,54 @@ trailing-stop:
 - For **bull trades**: once the price rises by `activation-pct` above buy price, the stop tracks from the highest price and triggers if the price drops `trailing-pct` from that peak.
 - For **bear trades**: once the price drops by `activation-pct` below sell price, the stop tracks from the lowest price and triggers if the price rises `trailing-pct` from that trough.
 
+### Scalp Mode Configuration
+
+Scalp mode is optimized for **high-frequency micro-trading** on volatile tickers. Instead of requiring all 6 entry signals simultaneously, it scores each signal and enters when `min-score` are bullish.
+
+```yaml
+scalp-mode:
+  enabled: true
+  min-score: 3           # minimum bullish signals out of 6 to trigger entry
+  post-buy-delay: 5      # seconds to wait after fill before exit monitoring
+  inter-op-delay: 10     # seconds to wait between completed operations
+  require-rsi-exit: false # require RSI momentum confirmation before take-profit
+```
+
+**Scoring signals (6 total):**
+
+| # | Signal | Bullish condition |
+|---|--------|-------------------|
+| 1 | RSI | Below upper limit |
+| 2 | MACD | MACD line above signal line |
+| 3 | Tendency | Matches configured direction |
+| 4 | Bollinger | DEMA closer to lower band than upper band |
+| 5 | ADX | Above configured threshold |
+| 6 | Volume | Current volume above its moving average |
+
+With `min-score: 3` the bot enters if any 3 of 6 signals are bullish. Raise to `4` or `5` for more selective, lower-frequency entries.
+
+> See [sample-scalp-config.yml](/sample-scalp-config.yml) for a complete high-frequency configuration tuned for 1-minute candles.
+
+**Recommended stop-loss / take-profit for scalping (after 0.2% round-trip fees):**
+
+| Scenario | `--sl` | `--tp` | Net gain/loss |
+|----------|--------|--------|---------------|
+| Ultra-tight | `0.4` | `0.7` | +0.5% / -0.4% |
+| Balanced ✓ | `0.6` | `1.0` | +0.8% / -0.6% |
+| Conservative | `1.0` | `1.8` | +1.6% / -1.0% |
+
+### Top Gainers Configuration
+
+```yaml
+top-gainers:
+  quote-asset: "USDT"      # filter pairs ending with this asset
+  limit: 20                # number of top gainers to display
+  poll-interval: 60        # seconds between each refresh
+  min-volume: 1000000      # minimum 24h quote volume to include
+  exclude-symbols:         # symbols to always exclude
+    - "USDCUSDT"
+```
+
 ### AI Configuration
 
 The AI multi-agent system is optional. When enabled, it queries multiple LLM providers concurrently with technical indicators and market sentiment data to produce a consensus trading signal.
@@ -252,6 +343,26 @@ ai:
 
 > Set `ai.enabled: false` or omit all provider API keys to disable AI and run on technical indicators only.
 
+### File Logging
+
+All log levels (orders, info, errors) are automatically written to `binance-bot.log` in the working directory, alongside the TUI display. Color tags are stripped before writing. The file is opened in append mode so logs accumulate across sessions.
+
+```
+2026-04-07 12:30:01 [ORDER] BUY 50.000000 PEPE @ 0.00001234 USDT = 0.000617 USDT
+2026-04-07 12:30:05 [INFO]  BUY order filled!
+2026-04-07 12:30:06 [ERROR] RSI prices: context deadline exceeded
+```
+
+### Auto-Notional Adjustment
+
+Binance enforces a minimum notional value (`price × quantity`) per symbol — typically 5 USDT. If the configured `--amount` would produce a notional below this threshold (common with very cheap tokens like PEPE or SHIB), the bot automatically raises the quantity to meet the exchange's `NOTIONAL` and `LOT_SIZE` filters before placing the order. A message is logged when an adjustment occurs:
+
+```
+BUY qty adjusted from 50.00000000 to 405210.00000000 to meet exchange filters (minNotional=5.00)
+```
+
+No manual intervention is required — the adjustment is transparent and logged.
+
 ---
 
 ## Trading Strategy Logic
@@ -261,10 +372,11 @@ ai:
 The `bull-trade` command is designed to operate during **bull market trends**, leveraging upward momentum to execute profitable trades.
 
 #### **Buy Conditions**
-The bot will place a buy order when **all** of these conditions are met:
+
+In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` out of 6 are bullish (see [Scalp Mode Configuration](#scalp-mode-configuration)).
 
 1. **RSI**: Value is below the configured `upper-limit` (default 70), indicating the market is not overbought.
-2. **MACD Crossover**: The MACD line crosses above the Signal line, suggesting upward momentum.
+2. **MACD Crossover**: The MACD line crosses above the Signal line (classic) or is above the Signal line (scalp), suggesting upward momentum.
 3. **Tendency Confirmation**: The trend direction matches the configured direction (DEMA above EMA = "up").
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
@@ -276,7 +388,7 @@ The bot will exit a position through one of three mechanisms:
 
 1. **Trailing Stop-Loss** *(if enabled)*: After the price rises by `activation-pct` above buy price, the stop trails from the highest price. Triggers when price drops by `trailing-pct` from the peak.
 2. **Fixed Stop-Loss**: The price drops to the stop-loss percentage below buy price. Executes immediately (no AI delay on protective exits).
-3. **Take Profit**: The price reaches the take-profit percentage AND the RSI turns downward AND the AI supports the exit (if enabled).
+3. **Take Profit**: The price reaches the take-profit percentage AND RSI is declining (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
 
 ---
 
@@ -285,7 +397,10 @@ The bot will exit a position through one of three mechanisms:
 The `bear-trade` command is designed to operate during **bear market trends**, profiting from downward price movement by selling high and buying back low.
 
 #### **Sell Entry Conditions**
-The bot will open a short position (sell) when **all** of these conditions are met:
+
+In **classic mode**, all conditions must be met simultaneously. In **scalp mode**, `min-score` out of 6 signals must be bearish.
+
+The bot will open a short position (sell) when:
 
 1. **RSI**: Value is above the configured `lower-limit` (default 30), indicating the market is not oversold.
 2. **MACD Crossover**: The MACD line crosses below the Signal line, suggesting downward momentum.
@@ -300,7 +415,7 @@ The bot will exit the bear position (buy back) through one of three mechanisms:
 
 1. **Trailing Stop** *(if enabled)*: After the price drops by `activation-pct` below sell price, the stop trails from the lowest price. Triggers when price rises by `trailing-pct` from the trough.
 2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price. Executes immediately.
-3. **Take Profit**: The price drops to the take-profit percentage AND the RSI turns upward AND the AI supports the exit (if enabled).
+3. **Take Profit**: The price drops to the take-profit percentage AND RSI is rising (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
 
 ---
 
