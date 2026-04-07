@@ -3,9 +3,75 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
+	"strconv"
 
 	binance "github.com/binance/binance-connector-go"
 )
+
+// SymbolFilters holds the relevant trading filters for a symbol.
+type SymbolFilters struct {
+	MinNotional float64
+	MinQty      float64
+	StepSize    float64
+}
+
+// GetSymbolFilters fetches MIN_NOTIONAL and LOT_SIZE filters from Binance exchange info.
+func GetSymbolFilters(symbol string) (*SymbolFilters, error) {
+	client := binance.NewClient(apikey, secretkey, baseurl)
+	info, err := client.NewExchangeInfoService().Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("exchange info: %w", err)
+	}
+	for _, s := range info.Symbols {
+		if s.Symbol != symbol {
+			continue
+		}
+		sf := &SymbolFilters{}
+		for _, f := range s.Filters {
+			switch f.FilterType {
+			case "NOTIONAL":
+				if v, err := strconv.ParseFloat(f.MinNotional, 64); err == nil {
+					sf.MinNotional = v
+				}
+			case "LOT_SIZE":
+				if v, err := strconv.ParseFloat(f.MinQty, 64); err == nil {
+					sf.MinQty = v
+				}
+				if v, err := strconv.ParseFloat(f.StepSize, 64); err == nil {
+					sf.StepSize = v
+				}
+			}
+		}
+		return sf, nil
+	}
+	return nil, fmt.Errorf("symbol %s not found in exchange info", symbol)
+}
+
+// AdjustQuantity ensures the order quantity meets MIN_NOTIONAL and LOT_SIZE filters.
+// Returns the adjusted quantity and true if it was modified, or the original and false.
+func AdjustQuantity(qty, price float64, filters *SymbolFilters, roundPrecision uint) (float64, bool) {
+	adjusted := false
+	// Ensure minimum notional: price * qty >= minNotional
+	if filters.MinNotional > 0 && price > 0 {
+		minQtyForNotional := filters.MinNotional / price
+		if qty < minQtyForNotional {
+			qty = minQtyForNotional * 1.01 // add 1% buffer to avoid edge cases
+			adjusted = true
+		}
+	}
+	// Ensure minimum lot size
+	if filters.MinQty > 0 && qty < filters.MinQty {
+		qty = filters.MinQty
+		adjusted = true
+	}
+	// Align to step size
+	if filters.StepSize > 0 {
+		qty = math.Ceil(qty/filters.StepSize) * filters.StepSize
+	}
+	qty = roundFloat(qty, roundPrecision)
+	return qty, adjusted
+}
 
 // Orders fee = 0.01% (* 0.0001)
 

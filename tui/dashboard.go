@@ -36,6 +36,8 @@ type Dashboard struct {
 	refreshSecs   int
 	countdown     int
 	countdownStop chan struct{}
+
+	fileLogger *FileLogger
 }
 
 // NewDashboard creates a new TUI dashboard with multi-panel layout.
@@ -573,6 +575,11 @@ func (d *Dashboard) UpdateAI(data *AIConsensusData) {
 	})
 }
 
+// SetFileLogger attaches a file logger so log messages are also written to disk.
+func (d *Dashboard) SetFileLogger(fl *FileLogger) {
+	d.fileLogger = fl
+}
+
 // LogOrder appends an order event to the orders log panel.
 func (d *Dashboard) LogOrder(text string) {
 	now := time.Now().Format("15:04:05")
@@ -581,6 +588,9 @@ func (d *Dashboard) LogOrder(text string) {
 		fmt.Fprint(d.ordersPanel, line)
 		d.ordersPanel.ScrollToEnd()
 	})
+	if d.fileLogger != nil {
+		d.fileLogger.Log("ORDER", text)
+	}
 }
 
 // LogInfo appends an informational message to the orders log.
@@ -591,6 +601,9 @@ func (d *Dashboard) LogInfo(msg string) {
 		fmt.Fprint(d.ordersPanel, line)
 		d.ordersPanel.ScrollToEnd()
 	})
+	if d.fileLogger != nil {
+		d.fileLogger.Log("INFO", msg)
+	}
 }
 
 // LogError appends an error message to the orders log.
@@ -601,4 +614,7 @@ func (d *Dashboard) LogError(msg string) {
 		fmt.Fprint(d.ordersPanel, line)
 		d.ordersPanel.ScrollToEnd()
 	})
+	if d.fileLogger != nil {
+		d.fileLogger.Log("ERROR", msg)
+	}
 }

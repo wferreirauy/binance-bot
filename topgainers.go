@@ -65,6 +65,15 @@ func TopGainers(configFile string) {
 
 	dash := tui.NewGainersDashboard(quoteAsset, limit, pollInterval)
 
+	// initialize file logger
+	fl, err := tui.NewFileLogger("binance-bot.log")
+	if err != nil {
+		log.Printf("Warning: could not open log file: %v", err)
+	} else {
+		defer fl.Close()
+		dash.SetFileLogger(fl)
+	}
+
 	go func() {
 		defer dash.Stop()
 		dash.LogInfo(fmt.Sprintf("Monitoring top %d gainers for %s (poll every %ds)", limit, quoteAsset, pollSecs))
