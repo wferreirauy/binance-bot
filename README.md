@@ -2,7 +2,6 @@
 
 <img width="1343" height="863" alt="Image" src="https://github.com/user-attachments/assets/10b5cd6f-c80e-4661-b963-9f5b52641330" />
 
-![Captura desde 2024-12-07 03-23-41](https://github.com/user-attachments/assets/4d251761-ed43-4649-842f-fd016bc62532)
 
 ## Features
 
