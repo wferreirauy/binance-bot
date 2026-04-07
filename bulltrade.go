@@ -79,6 +79,15 @@ func BullTrade(
 	// initialize TUI dashboard
 	dash := tui.NewDashboard("BULL", symbol)
 
+	// initialize file logger
+	fl, err := tui.NewFileLogger("binance-bot.log")
+	if err != nil {
+		log.Printf("Warning: could not open log file: %v", err)
+	} else {
+		defer fl.Close()
+		dash.SetFileLogger(fl)
+	}
+
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
 		defer dash.Stop()
@@ -217,13 +226,45 @@ func bullTradeLoop(
 				}
 			}
 
-			// when to buy
-			if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) &&
-				macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] &&
-				tendency == cfg.Tendency.Direction &&
-				distanceToLower < distanceToUpper &&
-				adxStrong && volumeConfirmed && aiApproved {
+			// when to buy — scalp mode uses scoring; classic mode requires all conditions
+			var shouldBuy bool
+			if cfg.ScalpMode.Enabled {
+				score := 0
+				if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) {
+					score++
+				}
+				if macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
+					score++ // MACD above signal (not requiring exact crossover)
+				}
+				if tendency == cfg.Tendency.Direction {
+					score++
+				}
+				if distanceToLower < distanceToUpper {
+					score++
+				}
+				if adxStrong {
+					score++
+				}
+				if volumeConfirmed {
+					score++
+				}
+				minScore := cfg.ScalpMode.MinScore
+				if minScore <= 0 {
+					minScore = 3
+				}
+				shouldBuy = score >= minScore && aiApproved
+				if shouldBuy {
+					dash.LogInfo(fmt.Sprintf("[yellow]Scalp entry: score %d/%d (min %d)[-]", score, 6, minScore))
+				}
+			} else {
+				shouldBuy = rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) &&
+					macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
+					macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] &&
+					tendency == cfg.Tendency.Direction &&
+					distanceToLower < distanceToUpper &&
+					adxStrong && volumeConfirmed && aiApproved
+			}
+			if shouldBuy {
 
 				dash.SetPhase("BUYING")
 				buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
@@ -257,7 +298,11 @@ func bullTradeLoop(
 			time.Sleep(refreshInterval)
 		}
 
-		time.Sleep(30 * time.Second)
+		postBuyDelay := 30
+		if cfg.ScalpMode.Enabled && cfg.ScalpMode.PostBuyDelay > 0 {
+			postBuyDelay = cfg.ScalpMode.PostBuyDelay
+		}
+		time.Sleep(time.Duration(postBuyDelay) * time.Second)
 
 		//// sell ////
 		dash.SetPhase("MONITORING SELL")
@@ -350,7 +395,9 @@ func bullTradeLoop(
 					aiSellApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
-			if price >= profitPrice && rsi[len(rsi)-1] < rsi[len(rsi)-2] && aiSellApproved {
+			rsiDeclining := rsi[len(rsi)-1] < rsi[len(rsi)-2]
+			rsiExitOk := rsiDeclining || (cfg.ScalpMode.Enabled && !cfg.ScalpMode.RequireRSIExit)
+			if price >= profitPrice && rsiExitOk && aiSellApproved {
 				dash.SetPhase("TAKE PROFIT")
 				sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 				if err != nil {
@@ -368,8 +415,12 @@ func bullTradeLoop(
 		}
 
 		operation++
-		dash.LogInfo(fmt.Sprintf("Operation #%d complete. Next in 1 min...", operation-1))
-		time.Sleep(1 * time.Minute)
+		interOpDelay := 60
+		if cfg.ScalpMode.Enabled && cfg.ScalpMode.InterOpDelay > 0 {
+			interOpDelay = cfg.ScalpMode.InterOpDelay
+		}
+		dash.LogInfo(fmt.Sprintf("Operation #%d complete. Next in %ds...", operation-1, interOpDelay))
+		time.Sleep(time.Duration(interOpDelay) * time.Second)
 	}
 }
 

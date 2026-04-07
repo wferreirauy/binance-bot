@@ -35,6 +35,8 @@ type GainersDashboard struct {
 	mu            sync.Mutex
 	lastUpdate    time.Time
 	countdownStop chan struct{}
+
+	fileLogger *FileLogger
 }
 
 // NewGainersDashboard creates a new TUI for the top gainers monitor.
@@ -132,6 +134,11 @@ func (d *GainersDashboard) UpdateGainers(rows []GainerRow) {
 	})
 }
 
+// SetFileLogger attaches a file logger so log messages are also written to disk.
+func (d *GainersDashboard) SetFileLogger(fl *FileLogger) {
+	d.fileLogger = fl
+}
+
 // LogInfo appends an info message to the log panel.
 func (d *GainersDashboard) LogInfo(msg string) {
 	now := time.Now().Format("15:04:05")
@@ -140,6 +147,9 @@ func (d *GainersDashboard) LogInfo(msg string) {
 		fmt.Fprint(d.logPanel, line)
 		d.logPanel.ScrollToEnd()
 	})
+	if d.fileLogger != nil {
+		d.fileLogger.Log("INFO", msg)
+	}
 }
 
 // LogError appends an error message to the log panel.
@@ -150,4 +160,7 @@ func (d *GainersDashboard) LogError(msg string) {
 		fmt.Fprint(d.logPanel, line)
 		d.logPanel.ScrollToEnd()
 	})
+	if d.fileLogger != nil {
+		d.fileLogger.Log("ERROR", msg)
+	}
 }

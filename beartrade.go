@@ -80,6 +80,15 @@ func BearTrade(
 	// initialize TUI dashboard
 	dash := tui.NewDashboard("BEAR", symbol)
 
+	// initialize file logger
+	fl, err := tui.NewFileLogger("binance-bot.log")
+	if err != nil {
+		log.Printf("Warning: could not open log file: %v", err)
+	} else {
+		defer fl.Close()
+		dash.SetFileLogger(fl)
+	}
+
 	// run trade logic in a goroutine, TUI runs on main thread
 	go func() {
 		defer dash.Stop()
@@ -218,13 +227,45 @@ func bearTradeLoop(
 				}
 			}
 
-			// when to sell (bear entry)
-			if rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) &&
-				macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
-				macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] &&
-				tendency == "down" &&
-				distanceToUpper < distanceToLower &&
-				adxStrong && volumeConfirmed && aiApproved {
+			// when to sell (bear entry) — scalp mode uses scoring; classic mode requires all conditions
+			var shouldSell bool
+			if cfg.ScalpMode.Enabled {
+				score := 0
+				if rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) {
+					score++
+				}
+				if macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] {
+					score++ // MACD below signal (not requiring exact crossover)
+				}
+				if tendency == "down" {
+					score++
+				}
+				if distanceToUpper < distanceToLower {
+					score++
+				}
+				if adxStrong {
+					score++
+				}
+				if volumeConfirmed {
+					score++
+				}
+				minScore := cfg.ScalpMode.MinScore
+				if minScore <= 0 {
+					minScore = 3
+				}
+				shouldSell = score >= minScore && aiApproved
+				if shouldSell {
+					dash.LogInfo(fmt.Sprintf("[yellow]Scalp entry: score %d/%d (min %d)[-]", score, 6, minScore))
+				}
+			} else {
+				shouldSell = rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit) &&
+					macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
+					macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] &&
+					tendency == "down" &&
+					distanceToUpper < distanceToLower &&
+					adxStrong && volumeConfirmed && aiApproved
+			}
+			if shouldSell {
 
 				dash.SetPhase("SELLING")
 				sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
@@ -250,7 +291,11 @@ func bearTradeLoop(
 			time.Sleep(refreshInterval)
 		}
 
-		time.Sleep(30 * time.Second)
+		postSellDelay := 30
+		if cfg.ScalpMode.Enabled && cfg.ScalpMode.PostBuyDelay > 0 {
+			postSellDelay = cfg.ScalpMode.PostBuyDelay
+		}
+		time.Sleep(time.Duration(postSellDelay) * time.Second)
 
 		//// buy back (bear exit) ////
 		dash.SetPhase("MONITORING BUY-BACK")
@@ -346,7 +391,9 @@ func bearTradeLoop(
 					aiBuyApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
 				}
 			}
-			if price <= profitPrice && rsi[len(rsi)-1] > rsi[len(rsi)-2] && aiBuyApproved {
+			rsiRising := rsi[len(rsi)-1] > rsi[len(rsi)-2]
+			rsiExitOk := rsiRising || (cfg.ScalpMode.Enabled && !cfg.ScalpMode.RequireRSIExit)
+			if price <= profitPrice && rsiExitOk && aiBuyApproved {
 				dash.SetPhase("TAKE PROFIT")
 				buyBackQty := roundFloat(sellProceeds/price, roundAmount)
 				buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
@@ -365,7 +412,11 @@ func bearTradeLoop(
 		}
 
 		operation++
-		dash.LogInfo(fmt.Sprintf("Operation #%d complete. Next in 1 min...", operation-1))
-		time.Sleep(1 * time.Minute)
+		interOpDelay := 60
+		if cfg.ScalpMode.Enabled && cfg.ScalpMode.InterOpDelay > 0 {
+			interOpDelay = cfg.ScalpMode.InterOpDelay
+		}
+		dash.LogInfo(fmt.Sprintf("Operation #%d complete. Next in %ds...", operation-1, interOpDelay))
+		time.Sleep(time.Duration(interOpDelay) * time.Second)
 	}
 }
