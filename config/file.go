@@ -15,6 +15,8 @@ type Config struct {
 	Tendency struct {
 		Interval  string `yaml:"interval"`
 		Direction string `yaml:"direction"`
+		HTFEnabled  bool   `yaml:"htf-enabled"`  // enable higher-timeframe trend gate
+		HTFInterval string `yaml:"htf-interval"` // e.g. "5m", "15m" — blocks entry if HTF trend opposes trade direction
 	} `yaml:"tendency"`
 	Indicators struct {
 		Rsi struct {
@@ -69,11 +71,16 @@ type Config struct {
 	} `yaml:"ai"`
 	RefreshInterval int `yaml:"refresh-interval"`
 	ScalpMode struct {
-		Enabled          bool `yaml:"enabled"`
-		MinScore         int  `yaml:"min-score"`          // min bullish signals out of 6 to trigger entry
-		PostBuyDelay     int  `yaml:"post-buy-delay"`     // seconds to wait after buy fill before sell monitoring
-		InterOpDelay     int  `yaml:"inter-op-delay"`     // seconds to wait between operations
-		RequireRSIExit   bool `yaml:"require-rsi-exit"`   // require RSI declining for take-profit
+		Enabled          bool    `yaml:"enabled"`
+		MinScore         int     `yaml:"min-score"`            // min bullish signals out of 6 to trigger entry
+		PostBuyDelay     int     `yaml:"post-buy-delay"`       // seconds to wait after buy fill before sell monitoring
+		InterOpDelay     int     `yaml:"inter-op-delay"`       // seconds to wait between operations
+		RequireRSIExit   bool    `yaml:"require-rsi-exit"`     // require RSI declining for take-profit
+		SLCooldown       bool    `yaml:"sl-cooldown"`          // enable exponential backoff after consecutive stop-losses
+		MaxConsecutiveSL int     `yaml:"max-consecutive-sl"`   // SL hits before cooldown kicks in (default: 2)
+		CooldownBaseSecs int     `yaml:"cooldown-base-secs"`   // base cooldown seconds, doubles each time (default: 60)
+		ATRStopLoss      bool    `yaml:"atr-stop-loss"`        // use ATR-based dynamic stop-loss floor
+		ATRMultiplier    float64 `yaml:"atr-multiplier"`       // SL = max(configured, atrMultiplier × ATR%) (default: 1.5)
 	} `yaml:"scalp-mode"`
 	TopGainers struct {
 		QuoteAsset      string   `yaml:"quote-asset"`

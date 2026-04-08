@@ -123,6 +123,7 @@ func bearTradeLoop(
 ) {
 	var sellPrice float64
 	var operation = 1
+	var consecutiveSL int // tracks consecutive stop-loss exits for cooldown
 
 	for range max_ops {
 		dash.SetOperation(operation)
@@ -227,6 +228,19 @@ func bearTradeLoop(
 				}
 			}
 
+			// Higher-timeframe trend gate: block BEAR entry if HTF trend is not down
+			if cfg.Tendency.HTFEnabled && cfg.Tendency.HTFInterval != "" {
+				htfTendency, htfErr := getTendency(client, ticker, cfg.Tendency.HTFInterval, period)
+				if htfErr != nil {
+					dash.LogError(fmt.Sprintf("HTF Tendency: %v", htfErr))
+				} else if htfTendency != "down" {
+					dash.LogInfo(fmt.Sprintf("[red]HTF GATE[-] %s trend is [green]%s[-] on %s — skipping BEAR entry",
+						symbol, htfTendency, cfg.Tendency.HTFInterval))
+					time.Sleep(refreshInterval)
+					continue
+				}
+			}
+
 			// when to sell (bear entry) — scalp mode uses scoring; classic mode requires all conditions
 			var shouldSell bool
 			if cfg.ScalpMode.Enabled {
@@ -301,6 +315,7 @@ func bearTradeLoop(
 		dash.SetPhase("MONITORING BUY-BACK")
 		lowestPrice := sellPrice
 		sellProceeds := sellPrice * qty
+		exitType := "" // tracks how position was closed: "tp", "ts", "sl"
 
 		for {
 			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
@@ -350,13 +365,32 @@ func bearTradeLoop(
 						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP BUY[-] %f %s @ [white::b]%.*f[-] %s",
 							buyBackQty, scoin, roundPrice, price, dcoin))
 						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP BUY[-] filled!", refreshInterval)
+						exitType = "ts"
 						break
 					}
 				}
 			}
 
-			// stop loss: price goes UP
-			stopLossPrice := sellPrice * (1 + stopLoss/100)
+			// ATR-based dynamic stop-loss: use max(configuredSL, atrMultiplier × ATR%)
+			effectiveSL := stopLoss
+			if cfg.ScalpMode.ATRStopLoss && cfg.Indicators.Atr.Period > 0 {
+				atr := calculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+				if len(atr) > 0 {
+					atrMultiplier := cfg.ScalpMode.ATRMultiplier
+					if atrMultiplier <= 0 {
+						atrMultiplier = 1.5
+					}
+					atrPct := (atr[len(atr)-1] / price) * atrMultiplier * 100
+					if atrPct > effectiveSL {
+						dash.LogInfo(fmt.Sprintf("[yellow]ATR-SL[-] widened SL from %.2f%% to %.2f%% (ATR=%.8f, price=%.8f)",
+							stopLoss, atrPct, atr[len(atr)-1], price))
+						effectiveSL = atrPct
+					}
+				}
+			}
+
+			// stop loss: price goes UP (using effective SL which may be ATR-widened)
+			stopLossPrice := sellPrice * (1 + effectiveSL/100)
 			if price >= stopLossPrice {
 				dash.SetPhase("STOP LOSS")
 				buyBackQty := roundFloat(sellProceeds/price, roundAmount)
@@ -367,9 +401,10 @@ func bearTradeLoop(
 				}
 				buyOrder := reflect.ValueOf(buy).Elem()
 				orderId := buyOrder.FieldByName("OrderId").Int()
-				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS BUY[-] %f %s @ [white::b]%.*f[-] %s",
-					buyBackQty, scoin, roundPrice, price, dcoin))
+				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS BUY[-] %f %s @ [white::b]%.*f[-] %s (SL=%.2f%%)",
+					buyBackQty, scoin, roundPrice, price, dcoin, effectiveSL))
 				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS BUY[-] filled!", refreshInterval)
+				exitType = "sl"
 				break
 			}
 
@@ -406,9 +441,34 @@ func bearTradeLoop(
 				dash.LogOrder(fmt.Sprintf("[green::b]BUY[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
 					buyBackQty, scoin, roundPrice, price, dcoin, roundPrice, price*buyBackQty, dcoin))
 				waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval)
+				exitType = "tp"
 				break
 			}
 			time.Sleep(refreshInterval)
+		}
+
+		// Update consecutive SL counter and apply cooldown
+		if exitType == "sl" {
+			consecutiveSL++
+			maxConsec := cfg.ScalpMode.MaxConsecutiveSL
+			if maxConsec <= 0 {
+				maxConsec = 2
+			}
+			if cfg.ScalpMode.SLCooldown && consecutiveSL >= maxConsec {
+				baseSecs := cfg.ScalpMode.CooldownBaseSecs
+				if baseSecs <= 0 {
+					baseSecs = 60
+				}
+				exponent := consecutiveSL - maxConsec
+				cooldown := baseSecs * (1 << exponent) // 60, 120, 240, 480...
+				if cooldown > 600 {
+					cooldown = 600 // cap at 10 minutes
+				}
+				dash.LogInfo(fmt.Sprintf("[red]SL COOLDOWN[-] %d consecutive SLs — waiting %ds before next entry", consecutiveSL, cooldown))
+				time.Sleep(time.Duration(cooldown) * time.Second)
+			}
+		} else {
+			consecutiveSL = 0 // reset on take-profit or trailing-stop
 		}
 
 		operation++
