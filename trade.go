@@ -44,3 +44,41 @@ func TradeSell(ticker string, qty, basePrice, sellFactor float64, round uint) (a
 	}
 	return order, nil
 }
+
+func TradeMarketBuy(ticker string, qty, estimatedPrice float64, round uint) (any, error) {
+	tick := strings.Replace(ticker, "/", "", -1)
+
+	filters, err := GetSymbolFilters(tick)
+	if err != nil {
+		return nil, fmt.Errorf("market buy: %w", err)
+	}
+	adjQty, adjusted := AdjustQuantity(qty, estimatedPrice, filters, round)
+	if adjusted {
+		fmt.Printf("MARKET BUY qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
+	}
+
+	order, err := NewMarketOrder(tick, "BUY", adjQty)
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
+}
+
+func TradeMarketSell(ticker string, qty, estimatedPrice float64, round uint) (any, error) {
+	tick := strings.Replace(ticker, "/", "", -1)
+
+	filters, err := GetSymbolFilters(tick)
+	if err != nil {
+		return nil, fmt.Errorf("market sell: %w", err)
+	}
+	adjQty, adjusted := AdjustQuantity(qty, estimatedPrice, filters, round)
+	if adjusted {
+		fmt.Printf("MARKET SELL qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
+	}
+
+	order, err := NewMarketOrder(tick, "SELL", adjQty)
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
+}

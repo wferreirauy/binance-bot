@@ -109,19 +109,15 @@ func NewOrder(symbol, side string, quantity, price float64) (interface{}, error)
 
 }
 
-// TODO set stop loss boundaries
-/* func placeStopLossOrder(client *binance.Client, symbol string, quantity, stopPrice, limitPrice float64) error {
-	order, err := client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(binance.SideTypeSell).
-		Type(binance.OrderTypeStopLossLimit).
-		Quantity(fmt.Sprintf("%f", quantity)).
-		StopPrice(fmt.Sprintf("%f", stopPrice)).
-		Price(fmt.Sprintf("%f", limitPrice)).
-		Do(context.Background())
+func NewMarketOrder(symbol, side string, quantity float64) (interface{}, error) {
+
+	client := binance.NewClient(apikey, secretkey, baseurl)
+
+	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
+		Type("MARKET").Quantity(quantity).Do(context.Background())
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("order: creating new market order: %w", err)
 	}
-	log.Printf("Orden de stop-loss creada: %v", order)
-	return nil
-} */
+	return newOrder, nil
+
+}
