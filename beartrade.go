@@ -340,16 +340,16 @@ func bearTradeLoop(
 					if price >= trailingStopPrice {
 						dash.SetPhase("TRAILING STOP")
 						buyBackQty := roundFloat(sellProceeds/price, roundAmount)
-						buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
+						buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 						if err != nil {
-							dash.LogError(fmt.Sprintf("Trailing-Stop BUY failed: %v", err))
+							dash.LogError(fmt.Sprintf("Trailing-Stop MARKET BUY failed: %v", err))
 							return
 						}
 						buyOrder := reflect.ValueOf(buy).Elem()
 						orderId := buyOrder.FieldByName("OrderId").Int()
-						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP BUY[-] %f %s @ [white::b]%.*f[-] %s",
+						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP MARKET BUY[-] %f %s @ ~[white::b]%.*f[-] %s",
 							buyBackQty, scoin, roundPrice, price, dcoin))
-						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP BUY[-] filled!", refreshInterval)
+						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP MARKET BUY[-] filled!", refreshInterval)
 						break
 					}
 				}
@@ -360,16 +360,16 @@ func bearTradeLoop(
 			if price >= stopLossPrice {
 				dash.SetPhase("STOP LOSS")
 				buyBackQty := roundFloat(sellProceeds/price, roundAmount)
-				buy, err := TradeBuy(symbol, buyBackQty, price, 1.0, roundPrice)
+				buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 				if err != nil {
-					dash.LogError(fmt.Sprintf("Stop-Loss BUY failed: %v", err))
+					dash.LogError(fmt.Sprintf("Stop-Loss MARKET BUY failed: %v", err))
 					return
 				}
 				buyOrder := reflect.ValueOf(buy).Elem()
 				orderId := buyOrder.FieldByName("OrderId").Int()
-				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS BUY[-] %f %s @ [white::b]%.*f[-] %s",
+				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS MARKET BUY[-] %f %s @ ~[white::b]%.*f[-] %s",
 					buyBackQty, scoin, roundPrice, price, dcoin))
-				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS BUY[-] filled!", refreshInterval)
+				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS MARKET BUY[-] filled!", refreshInterval)
 				break
 			}
 

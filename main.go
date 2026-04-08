@@ -15,13 +15,9 @@ var (
 )
 
 func main() {
-	/* TODO
-	accept and define price range
-	*/
-
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.4.2",
+		Version:  "v0.4.3",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
