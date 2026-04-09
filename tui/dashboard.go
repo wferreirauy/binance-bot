@@ -160,11 +160,20 @@ func (d *Dashboard) Stop() {
 
 func (d *Dashboard) headerText() string {
 	modeColor := "green"
-	if d.tradeMode == "BEAR" {
+	switch d.tradeMode {
+	case "BEAR":
 		modeColor = "red"
+	case "AUTO":
+		modeColor = "cyan"
 	}
 	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help",
 		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
+}
+
+// SetTradeMode updates the trade mode displayed in the header (e.g. BULL, BEAR, AUTO).
+func (d *Dashboard) SetTradeMode(mode string) {
+	d.tradeMode = mode
+	d.updateHeader()
 }
 
 func (d *Dashboard) updateHeader() {

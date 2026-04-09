@@ -5,6 +5,7 @@
 
 ## Features
 
+- **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode to wait for a matching tendency
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
 - **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
@@ -15,7 +16,6 @@
 - **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
-- **Runtime Config Editor** — View and edit config values from inside the TUI without restarting (`c` / `e` keys)
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
 ## Download
@@ -85,6 +85,32 @@ Before using the Binance Trade Bot, you need to configure your environment with 
 
 ### Run the Bot
 
+#### Auto Trade (automatic tendency detection)
+
+```bash
+binance-bot -f binance-config.yml auto-trade -t "BTC/USDT" -a 0.001 -sl 2.0 -tp 2.5 -b 0.9998 -s 1.0003 -rp 2 -ra 5
+```
+
+This example:
+- Automatically detects whether `BTC/USDT` is trending up or down before each operation.
+- Enters **bull mode** (buy low, sell high) when tendency is "up", or **bear mode** (sell high, buy back low) when tendency is "down".
+- Re-detects tendency between every operation, adapting to changing market conditions.
+- If tendency flips during entry scanning, the bot dynamically switches mode without waiting.
+- The TUI header shows the currently active mode (BULL/BEAR) updated in real-time.
+
+#### Auto Trade with forced strategy
+
+```bash
+binance-bot -f binance-config.yml auto-trade -t "DOGE/USDT" -a 100 -sl 2.0 -tp 2.5 -b 0.9998 -s 1.0003 -rp 6 -ra 0 --strategy bull
+```
+
+This example:
+- Forces the bot to only enter **bull** (buy-first) operations — useful when your account only holds USDT.
+- The bot monitors the market and **waits** for an "up" tendency before placing any orders.
+- If tendency flips away during scanning, the bot returns to waiting instead of switching to bear.
+- Use `--strategy bear` to force sell-first operations (when you hold the base coin and want to sell first).
+- Use `--strategy auto` (default) for fully automatic tendency detection.
+
 #### Bull Trade (uptrending markets)
 
 ```bash
@@ -134,7 +160,7 @@ Modify these parameters based on your specific trading requirements.
 
 #### Explanation of Command Arguments
 
-These arguments apply to both `bull-trade` and `bear-trade` commands:
+These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` commands:
 
 | Option               | Short | Description                                                                                 | Default       |
 |----------------------|-------|---------------------------------------------------------------------------------------------|---------------|
@@ -147,6 +173,7 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
 | `--round-price`      | `-rp` | Decimal precision for rounding price values.                                                | **Required**  |
 | `--round-amount`     | `-ra` | Decimal precision for rounding amount values.                                               | **Required**  |
 | `--operations`       | `-o`  | Number of operations to execute during the trading session.                                 | `100`         |
+| `--strategy`         | `-st` | *(auto-trade only)* Force entry strategy: `bull`, `bear`, or `auto`.                       | `auto`        |
 | `--help`             | `-h`  | Show help for the command.                                                                  | -             |
 
 ### Help Commands
@@ -165,16 +192,17 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.4.2
+     v0.6.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
 
   COMMANDS:
-     bull-trade, bt   Start a bull trade run
-     bear-trade, brt  Start a bear trade run (sell high, buy back low)
-     top-gainers, tg  Monitor top market gainers in real-time
-     help, h          Shows a list of commands or help for one command
+     bull-trade, bt    Start a bull trade run
+     bear-trade, brt   Start a bear trade run (sell high, buy back low)
+     auto-trade, at    Automatically detect market tendency and trade accordingly (bull or bear)
+     top-gainers, tg   Monitor top market gainers in real-time
+     help, h           Shows a list of commands or help for one command
 
   GLOBAL OPTIONS:
      --config-file FILE, -f FILE  Load configuration from FILE (default: $HOME/binance-config.yml)
@@ -192,6 +220,11 @@ These arguments apply to both `bull-trade` and `bear-trade` commands:
   binance-bot bear-trade --help
   ```
 
+- For help with the `auto-trade` command:
+  ```bash
+  binance-bot auto-trade --help
+  ```
+
 - For help with the `top-gainers` command:
   ```bash
   binance-bot top-gainers --help
@@ -205,8 +238,6 @@ While the bot is running, the following keys are available inside the TUI:
 |-----|--------|
 | `q` / `Ctrl+C` | Quit the application |
 | `h` | Toggle the help / keyboard shortcuts popup |
-| `c` | View current config values loaded from the config file |
-| `e` | Open the runtime config editor to change values without restarting |
 | `Esc` | Close any open popup |
 
 ---
@@ -416,6 +447,35 @@ The bot will exit the bear position (buy back) through one of three mechanisms:
 1. **Trailing Stop** *(if enabled)*: After the price drops by `activation-pct` below sell price, the stop trails from the lowest price. Triggers when price rises by `trailing-pct` from the trough.
 2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price. Executes immediately.
 3. **Take Profit**: The price drops to the take-profit percentage AND RSI is rising (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
+
+---
+
+### Auto-Trade (Dynamic Tendency Detection)
+
+The `auto-trade` command removes the need to manually choose between bull and bear strategies. Before each operation, the bot evaluates the current market tendency using the same DEMA-vs-EMA analysis used by the individual modes.
+
+#### **How It Works**
+
+1. **Strategy Selection**: The `--strategy` flag determines behavior:
+   - `auto` (default): Detects tendency automatically and trades in whichever direction the market is trending.
+   - `bull`: Forces buy-first operations — the bot waits until tendency is "up" before entering. Ideal when you only hold the quote asset (e.g., USDT).
+   - `bear`: Forces sell-first operations — the bot waits until tendency is "down" before entering. Ideal when you hold the base asset and want to sell first.
+2. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA to EMA. If DEMA > EMA the tendency is "up" (bull); otherwise "down" (bear).
+3. **Waiting for Match**: When a strategy is forced (`bull` or `bear`), the bot continuously monitors tendency and only proceeds when it matches the required direction. The TUI shows the mode with "(waiting)" until tendency aligns.
+4. **Mode Selection**: Based on the detected/matched tendency, the bot switches to the appropriate strategy — bull (buy low, sell high) or bear (sell high, buy back low).
+5. **Live Re-detection**: During entry scanning in `auto` mode, if the tendency flips, the bot immediately adapts and switches to the opposite mode. In forced strategy mode, a tendency flip causes the bot to return to waiting.
+6. **Entry & Exit**: Once a mode is selected, the exact same entry conditions (classic or scalp scoring) and exit mechanisms (trailing stop, stop-loss, take-profit, AI confirmation) apply as in the standalone `bull-trade` or `bear-trade` commands.
+7. **Per-Operation Adaptation**: After each completed operation (entry + exit), the bot re-detects tendency before the next one.
+
+#### **TUI Display**
+
+The TUI header dynamically shows the current mode:
+- `BULL (waiting)` or `BEAR (waiting)` when a forced strategy is waiting for matching tendency
+- `AUTO MODE` in cyan at startup (when strategy is auto)
+- Switches to `BULL MODE` (green) or `BEAR MODE` (red) once tendency is detected/matched
+- Updates in real-time if tendency flips during scanning
+
+> **Tip**: The `auto-trade` command uses the same config file and flags as `bull-trade` / `bear-trade`. The `tendency.direction` config field is ignored — the bot determines direction automatically.
 
 ---
 

@@ -22,3 +22,14 @@ Follow [Semantic Versioning](https://semver.org/):
 - Environment variables for secrets: `BINANCE_API_KEY`, `BINANCE_SECRET_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`
 - TUI dashboard (`tui/` package) uses `tview` — all updates from goroutines must use `app.QueueUpdateDraw()`
 - AI agents (`ai/` package) run concurrently and return consensus via the `Orchestrator`
+
+## Documentation
+
+**Every time a feature is added, removed, or changed, update `README.md` accordingly.**
+This includes:
+- Features list at the top
+- Usage examples and command documentation
+- Help output block (version, commands list)
+- Command arguments table
+- Trading strategy logic section
+- Configuration sections (if config fields were added/changed)
