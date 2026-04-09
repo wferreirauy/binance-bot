@@ -192,7 +192,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.7.0
+     v0.6.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
