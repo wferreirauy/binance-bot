@@ -60,7 +60,7 @@ scalp-mode:
 
 # AI — disable for maximum speed, or keep with low confidence threshold
 ai:
-  enabled: false
+  enabled: true
   providers:
     openai:
       model: "gpt-4o-mini"
