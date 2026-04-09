@@ -31,6 +31,7 @@ func DynamicTrade(
 	roundPrice uint,
 	roundAmount uint,
 	max_ops uint,
+	strategy string,
 ) {
 
 	// read config.yml file
@@ -51,6 +52,12 @@ func DynamicTrade(
 
 	// initialize binance api client
 	client := binance_connector.NewClient(apikey, secretkey, baseurl)
+
+	// validate strategy flag
+	strategy = strings.ToLower(strategy)
+	if strategy != "auto" && strategy != "bull" && strategy != "bear" {
+		log.Fatal("error: --strategy must be 'auto', 'bull', or 'bear'")
+	}
 
 	// validate symbol in format 0-9A-Z/0-9A-Z
 	if re := regexp.MustCompile(`(?m)^[0-9A-Z]{1,8}/[0-9A-Z]{2,8}$`); !re.Match([]byte(symbol)) {
@@ -78,8 +85,14 @@ func DynamicTrade(
 		}
 	}
 
-	// initialize TUI dashboard with AUTO mode
-	dash := tui.NewDashboard("AUTO", symbol)
+	// initialize TUI dashboard with mode based on strategy
+	initialMode := "AUTO"
+	if strategy == "bull" {
+		initialMode = "BULL (waiting)"
+	} else if strategy == "bear" {
+		initialMode = "BEAR (waiting)"
+	}
+	dash := tui.NewDashboard(initialMode, symbol)
 
 	// initialize file logger
 	fl, err := tui.NewFileLogger("binance-bot.log")
@@ -102,8 +115,12 @@ func DynamicTrade(
 		if aiOrch != nil {
 			dash.LogInfo("AI Agents: [green]ENABLED[-]")
 		}
-		dash.LogInfo("[cyan::b]AUTO MODE[-] — tendency will be detected each operation")
-		dynamicTradeLoop(dash, client, cfg, aiOrch, symbol, ticker, scoin, dcoin, qty, stopLoss, takeProfit, buyFactor, sellFactor, roundPrice, roundAmount, max_ops, period, interval, refreshInterval)
+		if strategy == "auto" {
+			dash.LogInfo("[cyan::b]AUTO MODE[-] — tendency will be detected each operation")
+		} else {
+			dash.LogInfo(fmt.Sprintf("[cyan::b]%s STRATEGY[-] — will wait for matching tendency before entering", strings.ToUpper(strategy)))
+		}
+		dynamicTradeLoop(dash, client, cfg, aiOrch, symbol, ticker, scoin, dcoin, qty, stopLoss, takeProfit, buyFactor, sellFactor, roundPrice, roundAmount, max_ops, period, interval, refreshInterval, strategy)
 	}()
 
 	if err := dash.Run(); err != nil {
@@ -122,6 +139,7 @@ func dynamicTradeLoop(
 	period int,
 	interval string,
 	refreshInterval time.Duration,
+	strategy string,
 ) {
 	var operation = 1
 	var consecutiveSL int
@@ -132,14 +150,35 @@ func dynamicTradeLoop(
 
 		// Detect current market tendency before each operation
 		dash.SetPhase("DETECTING TENDENCY")
-		tendency, err := getTendency(client, ticker, cfg.Tendency.Interval, period)
-		if err != nil {
-			dash.LogError(fmt.Sprintf("Tendency detection: %v", err))
-			time.Sleep(refreshInterval)
-			continue
+		var tendency string
+		var isBull bool
+
+		for {
+			var err error
+			tendency, err = getTendency(client, ticker, cfg.Tendency.Interval, period)
+			if err != nil {
+				dash.LogError(fmt.Sprintf("Tendency detection: %v", err))
+				time.Sleep(refreshInterval)
+				continue
+			}
+
+			// When a strategy is forced, wait for tendency to match
+			if strategy == "bull" && tendency != "up" {
+				dash.SetTradeMode("BULL (waiting)")
+				dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [green]UP[-] tendency to match BULL strategy", tendency))
+				time.Sleep(refreshInterval)
+				continue
+			}
+			if strategy == "bear" && tendency != "down" {
+				dash.SetTradeMode("BEAR (waiting)")
+				dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [red]DOWN[-] tendency to match BEAR strategy", tendency))
+				time.Sleep(refreshInterval)
+				continue
+			}
+			break
 		}
 
-		isBull := tendency == "up"
+		isBull = tendency == "up"
 		if isBull {
 			dash.SetTradeMode("BULL")
 			dash.LogInfo(fmt.Sprintf("[green::b]▲ BULL[-] tendency detected on %s — entering BUY mode", cfg.Tendency.Interval))
@@ -176,16 +215,23 @@ func dynamicTradeLoop(
 				continue
 			}
 
-			// if tendency flipped during scanning, restart detection
+			// if tendency flipped during scanning, handle based on strategy
 			if (isBull && tendency != "up") || (!isBull && tendency != "down") {
-				dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s during scanning — re-detecting[-]", tendency))
-				isBull = tendency == "up"
-				if isBull {
-					dash.SetTradeMode("BULL")
-					dash.SetPhase("SCANNING BUY")
+				if strategy == "auto" {
+					// auto mode: switch to the new tendency
+					dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s during scanning — re-detecting[-]", tendency))
+					isBull = tendency == "up"
+					if isBull {
+						dash.SetTradeMode("BULL")
+						dash.SetPhase("SCANNING BUY")
+					} else {
+						dash.SetTradeMode("BEAR")
+						dash.SetPhase("SCANNING SELL")
+					}
 				} else {
-					dash.SetTradeMode("BEAR")
-					dash.SetPhase("SCANNING SELL")
+					// forced strategy: tendency no longer matches, go back to waiting
+					dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s — no longer matches %s strategy, returning to wait[-]", tendency, strings.ToUpper(strategy)))
+					break
 				}
 			}
 

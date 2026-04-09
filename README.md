@@ -5,7 +5,7 @@
 
 ## Features
 
-- **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation
+- **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode to wait for a matching tendency
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
 - **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
@@ -98,6 +98,19 @@ This example:
 - If tendency flips during entry scanning, the bot dynamically switches mode without waiting.
 - The TUI header shows the currently active mode (BULL/BEAR) updated in real-time.
 
+#### Auto Trade with forced strategy
+
+```bash
+binance-bot -f binance-config.yml auto-trade -t "DOGE/USDT" -a 100 -sl 2.0 -tp 2.5 -b 0.9998 -s 1.0003 -rp 6 -ra 0 --strategy bull
+```
+
+This example:
+- Forces the bot to only enter **bull** (buy-first) operations — useful when your account only holds USDT.
+- The bot monitors the market and **waits** for an "up" tendency before placing any orders.
+- If tendency flips away during scanning, the bot returns to waiting instead of switching to bear.
+- Use `--strategy bear` to force sell-first operations (when you hold the base coin and want to sell first).
+- Use `--strategy auto` (default) for fully automatic tendency detection.
+
 #### Bull Trade (uptrending markets)
 
 ```bash
@@ -160,6 +173,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
 | `--round-price`      | `-rp` | Decimal precision for rounding price values.                                                | **Required**  |
 | `--round-amount`     | `-ra` | Decimal precision for rounding amount values.                                               | **Required**  |
 | `--operations`       | `-o`  | Number of operations to execute during the trading session.                                 | `100`         |
+| `--strategy`         | `-st` | *(auto-trade only)* Force entry strategy: `bull`, `bear`, or `auto`.                       | `auto`        |
 | `--help`             | `-h`  | Show help for the command.                                                                  | -             |
 
 ### Help Commands
@@ -178,7 +192,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.6.0
+     v0.7.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -442,17 +456,23 @@ The `auto-trade` command removes the need to manually choose between bull and be
 
 #### **How It Works**
 
-1. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA to EMA. If DEMA > EMA the tendency is "up" (bull); otherwise "down" (bear).
-2. **Mode Selection**: Based on the detected tendency, the bot switches to the appropriate strategy — bull (buy low, sell high) or bear (sell high, buy back low).
-3. **Live Re-detection**: During entry scanning, if the tendency flips (e.g., from "up" to "down"), the bot immediately adapts and switches to the opposite mode.
-4. **Entry & Exit**: Once a mode is selected, the exact same entry conditions (classic or scalp scoring) and exit mechanisms (trailing stop, stop-loss, take-profit, AI confirmation) apply as in the standalone `bull-trade` or `bear-trade` commands.
-5. **Per-Operation Adaptation**: After each completed operation (entry + exit), the bot re-detects tendency before the next one, allowing it to alternate between bull and bear across operations as the market shifts.
+1. **Strategy Selection**: The `--strategy` flag determines behavior:
+   - `auto` (default): Detects tendency automatically and trades in whichever direction the market is trending.
+   - `bull`: Forces buy-first operations — the bot waits until tendency is "up" before entering. Ideal when you only hold the quote asset (e.g., USDT).
+   - `bear`: Forces sell-first operations — the bot waits until tendency is "down" before entering. Ideal when you hold the base asset and want to sell first.
+2. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA to EMA. If DEMA > EMA the tendency is "up" (bull); otherwise "down" (bear).
+3. **Waiting for Match**: When a strategy is forced (`bull` or `bear`), the bot continuously monitors tendency and only proceeds when it matches the required direction. The TUI shows the mode with "(waiting)" until tendency aligns.
+4. **Mode Selection**: Based on the detected/matched tendency, the bot switches to the appropriate strategy — bull (buy low, sell high) or bear (sell high, buy back low).
+5. **Live Re-detection**: During entry scanning in `auto` mode, if the tendency flips, the bot immediately adapts and switches to the opposite mode. In forced strategy mode, a tendency flip causes the bot to return to waiting.
+6. **Entry & Exit**: Once a mode is selected, the exact same entry conditions (classic or scalp scoring) and exit mechanisms (trailing stop, stop-loss, take-profit, AI confirmation) apply as in the standalone `bull-trade` or `bear-trade` commands.
+7. **Per-Operation Adaptation**: After each completed operation (entry + exit), the bot re-detects tendency before the next one.
 
 #### **TUI Display**
 
 The TUI header dynamically shows the current mode:
-- `AUTO MODE` in cyan at startup
-- Switches to `BULL MODE` (green) or `BEAR MODE` (red) once tendency is detected
+- `BULL (waiting)` or `BEAR (waiting)` when a forced strategy is waiting for matching tendency
+- `AUTO MODE` in cyan at startup (when strategy is auto)
+- Switches to `BULL MODE` (green) or `BEAR MODE` (red) once tendency is detected/matched
 - Updates in real-time if tendency flips during scanning
 
 > **Tip**: The `auto-trade` command uses the same config file and flags as `bull-trade` / `bear-trade`. The `tendency.direction` config field is ignored — the bot determines direction automatically.

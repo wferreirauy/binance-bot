@@ -231,11 +231,17 @@ func main() {
 						Value:   100,
 						Aliases: []string{"o"},
 					},
+					&cli.StringFlag{
+						Name:    "strategy",
+						Usage:   "force entry strategy: 'bull', 'bear', or 'auto' (detect automatically)",
+						Value:   "auto",
+						Aliases: []string{"st"},
+					},
 				},
 				Action: func(cCtx *cli.Context) error {
 					DynamicTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
-						cCtx.Uint("operations"))
+						cCtx.Uint("operations"), cCtx.String("strategy"))
 					return nil
 				},
 			},
