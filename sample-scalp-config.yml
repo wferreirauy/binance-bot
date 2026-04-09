@@ -13,6 +13,8 @@ refresh-interval: 5     # poll every 5 seconds (was 10)
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)
   direction: "up"
+  htf-enabled: true      # block entries when 5m trend opposes direction
+  htf-interval: "5m"    # higher-timeframe gate for scalp mode
 
 indicators:
   rsi:
@@ -50,6 +52,11 @@ scalp-mode:
   post-buy-delay: 5      # seconds after fill before monitoring exit (was hardcoded 30s)
   inter-op-delay: 10     # seconds between completed ops (was hardcoded 60s)
   require-rsi-exit: false # don't require RSI declining for take-profit
+  sl-cooldown: true      # enable exponential backoff after consecutive SL hits
+  max-consecutive-sl: 2  # start cooldown after 2 consecutive SLs
+  cooldown-base-secs: 60 # base cooldown: 60s → 120s → 240s (capped at 600s)
+  atr-stop-loss: true    # dynamically widen SL based on current volatility
+  atr-multiplier: 1.5    # SL = max(configured, 1.5 × ATR%)
 
 # AI — disable for maximum speed, or keep with low confidence threshold
 ai:

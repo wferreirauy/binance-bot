@@ -6,6 +6,8 @@ refresh-interval: 10  # seconds between price checks (default: 10)
 tendency:
   interval: "3m"
   direction: "up"
+  htf-enabled: false     # higher-timeframe trend gate (blocks entry if HTF trend opposes direction)
+  htf-interval: "15m"   # interval used for higher-timeframe tendency check
 indicators:
   rsi:
     interval: "5m"
@@ -43,6 +45,11 @@ scalp-mode:
   post-buy-delay: 30     # seconds to wait after fill before exit monitoring
   inter-op-delay: 60     # seconds to wait between completed operations
   require-rsi-exit: true # require RSI declining/rising for take-profit
+  sl-cooldown: false     # exponential backoff after consecutive stop-losses
+  max-consecutive-sl: 2  # SL hits before cooldown starts
+  cooldown-base-secs: 60 # base cooldown seconds (doubles each consecutive SL)
+  atr-stop-loss: false   # ATR-based dynamic stop-loss floor
+  atr-multiplier: 1.5    # SL = max(configured, atrMultiplier × ATR%)
 
 # AI multi-agent configuration
 # API keys are read from environment variables:

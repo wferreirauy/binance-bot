@@ -1,8 +1,2 @@
-#Ignore vscode AI rules
-.github/instructions/codacy.instructions.md
-
-# Ignore codacy config files
-.codacy/
-
 # Ignore vscode settings
 .vscode/
