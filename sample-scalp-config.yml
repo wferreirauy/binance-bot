@@ -8,7 +8,7 @@ historical-prices:
   period: 50            # shorter lookback → faster indicator response
   interval: "1m"        # 1-minute candles for rapid signals
 
-refresh-interval: 5     # poll every 5 seconds (was 10)
+refresh-interval: 10    # poll every 10 seconds for faster reaction to market changes
 
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)
@@ -58,7 +58,7 @@ scalp-mode:
   atr-stop-loss: true    # dynamically widen SL based on current volatility
   atr-multiplier: 1.5    # SL = max(configured, 1.5 × ATR%)
 
-# AI — disable for maximum speed, or keep with low confidence threshold
+# AI — use cautiously for scalp mode due to latency; ideal for post-trade analysis and refining strategy over time rather than real-time decision-making
 ai:
   enabled: true
   providers:
