@@ -77,7 +77,7 @@ func BullTrade(
 	}
 
 	// initialize TUI dashboard
-	dash := tui.NewDashboard("BULL", symbol)
+	dash := tui.NewDashboard("BULL", symbol, cfg)
 
 	// initialize file logger
 	fl, err := tui.NewFileLogger("binance-bot.log")

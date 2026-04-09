@@ -8,6 +8,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/wferreirauy/binance-bot/config"
 )
 
 // Dashboard manages the multi-panel terminal UI for the trading bot.
@@ -27,6 +28,8 @@ type Dashboard struct {
 	operation    int
 	phase        string // "SCANNING", "BUYING", "SELLING", etc.
 
+	configHolder *ConfigHolder
+
 	// Countdown state
 	mu            sync.Mutex
 	priceText     string
@@ -38,13 +41,17 @@ type Dashboard struct {
 }
 
 // NewDashboard creates a new TUI dashboard with multi-panel layout.
-func NewDashboard(tradeMode, symbol string) *Dashboard {
+// If cfg is non-nil, the dashboard allows viewing and editing config at runtime.
+func NewDashboard(tradeMode, symbol string, cfg ...*config.Config) *Dashboard {
 	d := &Dashboard{
 		app:       tview.NewApplication(),
 		tradeMode: tradeMode,
 		symbol:    symbol,
 		operation: 1,
 		phase:     "SCANNING",
+	}
+	if len(cfg) > 0 && cfg[0] != nil {
+		d.configHolder = NewConfigHolder(cfg[0])
 	}
 
 	// Header panel
@@ -133,12 +140,26 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 			d.showHelp(mainLayout)
 			return nil
 		}
+		if event.Rune() == 'c' {
+			d.showConfigViewer()
+			return nil
+		}
+		if event.Rune() == 'e' {
+			d.showConfigEditor()
+			return nil
+		}
 		return event
 	})
 
 	d.header.SetText(d.headerText())
 
 	return d
+}
+
+// GetConfigHolder returns the config holder for thread-safe config access.
+// Trade loops can use this to read updated config values at runtime.
+func (d *Dashboard) GetConfigHolder() *ConfigHolder {
+	return d.configHolder
 }
 
 // Run starts the TUI event loop (blocking). Call from a goroutine.
@@ -166,7 +187,7 @@ func (d *Dashboard) headerText() string {
 	case "AUTO":
 		modeColor = "cyan"
 	}
-	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help",
+	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help [white]|[-] [gold]c[-] config [white]|[-] [mediumpurple]e[-] edit",
 		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
 }
 
@@ -195,6 +216,8 @@ func (d *Dashboard) showHelp(mainLayout *tview.Flex) {
 		"[yellow::b]Key          Action[-]\n" +
 			"[white::b]q[-]            Quit the application\n" +
 			"[white::b]h[-]            Toggle this help popup\n" +
+			"[white::b]c[-]            View current configuration\n" +
+			"[white::b]e[-]            Edit configuration at runtime\n" +
 			"[white::b]Ctrl+C[-]       Force quit\n" +
 			"\n" +
 			"[yellow::b]Panels[-]\n" +
@@ -246,6 +269,14 @@ func (d *Dashboard) restoreInputCapture() {
 		}
 		if event.Rune() == 'h' {
 			d.showHelp(d.mainLayout)
+			return nil
+		}
+		if event.Rune() == 'c' {
+			d.showConfigViewer()
+			return nil
+		}
+		if event.Rune() == 'e' {
+			d.showConfigEditor()
 			return nil
 		}
 		return event
