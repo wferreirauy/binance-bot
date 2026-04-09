@@ -16,7 +16,6 @@
 - **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
-- **Runtime Config Editor** — View and edit config values from inside the TUI without restarting (`c` / `e` keys)
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
 ## Download
@@ -225,8 +224,6 @@ While the bot is running, the following keys are available inside the TUI:
 |-----|--------|
 | `q` / `Ctrl+C` | Quit the application |
 | `h` | Toggle the help / keyboard shortcuts popup |
-| `c` | View current config values loaded from the config file |
-| `e` | Open the runtime config editor to change values without restarting |
 | `Esc` | Close any open popup |
 
 ---
