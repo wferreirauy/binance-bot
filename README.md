@@ -38,7 +38,8 @@ You can **download the precompiled binary** from the repository's release artifa
 
 ## Usage
 
-⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
+> [!WARNING]
+> This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
 
 ---
 
@@ -192,7 +193,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.6.0
+     v0.7.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -496,7 +497,8 @@ Sentiment Data ────────┘       │         │         │
 
 ---
 
-⚠️ **Note:** Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
+> [!WARNING]
+> Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
 
 ---
 

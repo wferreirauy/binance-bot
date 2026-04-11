@@ -6,18 +6,13 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
-)
-
-var (
-	apikey    string = os.Getenv("BINANCE_API_KEY")
-	secretkey string = os.Getenv("BINANCE_SECRET_KEY")
-	baseurl   string = "https://api1.binance.com"
+	"github.com/wferreirauy/binance-bot/strategy"
 )
 
 func main() {
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.6.0",
+		Version:  "v0.7.0",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -99,7 +94,7 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BullTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+					strategy.BullTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
 					return nil
@@ -166,7 +161,7 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					BearTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+					strategy.BearTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"))
 					return nil
@@ -239,7 +234,7 @@ func main() {
 					},
 				},
 				Action: func(cCtx *cli.Context) error {
-					DynamicTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
+					strategy.DynamicTrade(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.Float64("amount"), cCtx.Float64("stop-loss"), cCtx.Float64("take-profit"),
 						cCtx.Float64("buy-factor"), cCtx.Float64("sell-factor"), cCtx.Uint("round-price"), cCtx.Uint("round-amount"),
 						cCtx.Uint("operations"), cCtx.String("strategy"))
 					return nil
@@ -250,7 +245,7 @@ func main() {
 				Usage:   "Monitor top market gainers in real-time",
 				Aliases: []string{"tg"},
 				Action: func(cCtx *cli.Context) error {
-					TopGainers(cCtx.String("config-file"))
+					strategy.TopGainers(cCtx.String("config-file"))
 					return nil
 				},
 			},

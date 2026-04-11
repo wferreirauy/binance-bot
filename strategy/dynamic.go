@@ -1,4 +1,4 @@
-package main
+package strategy
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 
 	binance_connector "github.com/binance/binance-connector-go"
 	"github.com/wferreirauy/binance-bot/ai"
+	"github.com/wferreirauy/binance-bot/exchange"
+	"github.com/wferreirauy/binance-bot/indicator"
 	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/tui"
 )
@@ -51,7 +53,7 @@ func DynamicTrade(
 	refreshInterval := time.Duration(refreshSecs) * time.Second
 
 	// initialize binance api client
-	client := binance_connector.NewClient(apikey, secretkey, baseurl)
+	client := binance_connector.NewClient(exchange.APIKey, exchange.SecretKey, exchange.BaseURL)
 
 	// validate strategy flag
 	strategy = strings.ToLower(strategy)
@@ -146,7 +148,7 @@ func dynamicTradeLoop(
 
 	for range max_ops {
 		dash.SetOperation(operation)
-		qty = roundFloat(qty, roundAmount)
+		qty = indicator.RoundFloat(qty, roundAmount)
 
 		// Detect current market tendency before each operation
 		dash.SetPhase("DETECTING TENDENCY")
@@ -155,7 +157,7 @@ func dynamicTradeLoop(
 
 		for {
 			var err error
-			tendency, err = getTendency(client, ticker, cfg.Tendency.Interval, period)
+			tendency, err = exchange.GetTendency(client, ticker, cfg.Tendency.Interval, period)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("Tendency detection: %v", err))
 				time.Sleep(refreshInterval)
@@ -196,7 +198,7 @@ func dynamicTradeLoop(
 		}
 
 		for {
-			ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
+			ohlcv, err := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("OHLCV fetch: %v", err))
 				time.Sleep(refreshInterval)
@@ -208,7 +210,7 @@ func dynamicTradeLoop(
 			dash.UpdatePrice(price, prevPrice, roundPrice)
 
 			// re-check tendency during scanning
-			tendency, err = getTendency(client, ticker, cfg.Tendency.Interval, period)
+			tendency, err = exchange.GetTendency(client, ticker, cfg.Tendency.Interval, period)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("Tendency: %v", err))
 				time.Sleep(refreshInterval)
@@ -236,11 +238,11 @@ func dynamicTradeLoop(
 			}
 
 			// indicators
-			dema := calculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
+			dema := indicator.CalculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
 			currentDema := dema[len(dema)-1]
-			rsi := calculateRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length)
-			macdLine, signalLine := calculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
-			bb, err := CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
+			rsi := indicator.CalculateRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length)
+			macdLine, signalLine := indicator.CalculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
+			bb, err := indicator.CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("BollingerBands: %v", err))
 			}
@@ -267,7 +269,7 @@ func dynamicTradeLoop(
 			var adxVal float64
 			var adxStrong bool
 			if cfg.Indicators.Adx.Period > 0 {
-				adx := calculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
+				adx := indicator.CalculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
 				if len(adx) > 0 {
 					adxVal = adx[len(adx)-1]
 				}
@@ -280,7 +282,7 @@ func dynamicTradeLoop(
 			var currentVolume, avgVolume float64
 			var volumeConfirmed bool
 			if cfg.Indicators.Volume.MaPeriod > 0 {
-				volumeMA := calculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
+				volumeMA := indicator.CalculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
 				currentVolume = ohlcv.Volumes[len(ohlcv.Volumes)-1]
 				if len(volumeMA) > 0 {
 					avgVolume = volumeMA[len(volumeMA)-1]
@@ -330,7 +332,7 @@ func dynamicTradeLoop(
 
 			// Higher-timeframe trend gate
 			if cfg.Tendency.HTFEnabled && cfg.Tendency.HTFInterval != "" {
-				htfTendency, htfErr := getTendency(client, ticker, cfg.Tendency.HTFInterval, period)
+				htfTendency, htfErr := exchange.GetTendency(client, ticker, cfg.Tendency.HTFInterval, period)
 				if htfErr != nil {
 					dash.LogError(fmt.Sprintf("HTF Tendency: %v", htfErr))
 				} else {
@@ -426,7 +428,7 @@ func dynamicTradeLoop(
 					dash.LogOrder(fmt.Sprintf("[green::b]BUY[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
 						qty, scoin, roundPrice, entryPrice, dcoin, roundPrice, entryPrice*qty, dcoin))
 
-					if getor, err := GetOrder(ticker, orderId); err == nil {
+					if getor, err := exchange.GetOrder(ticker, orderId); err == nil {
 						dash.LogInfo(fmt.Sprintf("BUY order #%d - Status: %s", getor.OrderId, getor.Status))
 					}
 					waitOrderFilled(dash, ticker, orderId, "[green::b]BUY order filled![-]", refreshInterval)
@@ -445,7 +447,7 @@ func dynamicTradeLoop(
 					dash.LogOrder(fmt.Sprintf("[red::b]SELL[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
 						qty, scoin, roundPrice, entryPrice, dcoin, roundPrice, entryPrice*qty, dcoin))
 
-					if getor, err := GetOrder(ticker, orderId); err == nil {
+					if getor, err := exchange.GetOrder(ticker, orderId); err == nil {
 						dash.LogInfo(fmt.Sprintf("SELL order #%d - Status: %s", getor.OrderId, getor.Status))
 					}
 					waitOrderFilled(dash, ticker, orderId, "[red::b]SELL order filled![-]", refreshInterval)
@@ -468,13 +470,13 @@ func dynamicTradeLoop(
 			highestPrice := entryPrice
 
 			for {
-				ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
+				ohlcv, err := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("OHLCV fetch: %v", err))
 					time.Sleep(refreshInterval)
 					continue
 				}
-				rsiprices, err := getHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
+				rsiprices, err := exchange.GetHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("RSI prices: %v", err))
 					time.Sleep(refreshInterval)
@@ -483,7 +485,7 @@ func dynamicTradeLoop(
 
 				price := ohlcv.Closes[len(ohlcv.Closes)-1]
 				prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
-				rsi := calculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
+				rsi := indicator.CalculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
 				dash.UpdatePrice(price, prevPrice, roundPrice)
 
 				pnl := (price - entryPrice) / entryPrice * 100
@@ -503,7 +505,7 @@ func dynamicTradeLoop(
 						trailingStopPrice := highestPrice * (1 - cfg.TrailingStop.TrailingPct/100)
 						if price <= trailingStopPrice {
 							dash.SetPhase("TRAILING STOP")
-							sell, err := TradeMarketSell(symbol, roundFloat(qty*0.998, roundAmount), price, roundPrice)
+							sell, err := TradeMarketSell(symbol, indicator.RoundFloat(qty*0.998, roundAmount), price, roundPrice)
 							if err != nil {
 								dash.LogError(fmt.Sprintf("Trailing-Stop MARKET SELL failed: %v", err))
 								return
@@ -522,7 +524,7 @@ func dynamicTradeLoop(
 				// ATR-based dynamic stop-loss
 				effectiveSL := stopLoss
 				if cfg.ScalpMode.ATRStopLoss && cfg.Indicators.Atr.Period > 0 {
-					atr := calculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+					atr := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
 					if len(atr) > 0 {
 						atrMultiplier := cfg.ScalpMode.ATRMultiplier
 						if atrMultiplier <= 0 {
@@ -541,7 +543,7 @@ func dynamicTradeLoop(
 				stopLossPrice := entryPrice * (1 - effectiveSL/100)
 				if price <= stopLossPrice {
 					dash.SetPhase("STOP LOSS")
-					sell, err := TradeMarketSell(symbol, roundFloat(qty*0.998, roundAmount), price, roundPrice)
+					sell, err := TradeMarketSell(symbol, indicator.RoundFloat(qty*0.998, roundAmount), price, roundPrice)
 					if err != nil {
 						dash.LogError(fmt.Sprintf("Stop-Loss MARKET SELL failed: %v", err))
 						return
@@ -577,7 +579,7 @@ func dynamicTradeLoop(
 				rsiExitOk := rsiDeclining || (cfg.ScalpMode.Enabled && !cfg.ScalpMode.RequireRSIExit)
 				if price >= profitPrice && rsiExitOk && aiSellApproved {
 					dash.SetPhase("TAKE PROFIT")
-					sell, err := TradeSell(symbol, roundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
+					sell, err := TradeSell(symbol, indicator.RoundFloat(qty*0.998, roundAmount), price, sellFactor, roundPrice)
 					if err != nil {
 						dash.LogError(fmt.Sprintf("SELL order failed: %v", err))
 						return
@@ -600,13 +602,13 @@ func dynamicTradeLoop(
 			sellProceeds := entryPrice * qty
 
 			for {
-				ohlcv, err := getHistoricalOHLCV(client, ticker, interval, period)
+				ohlcv, err := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("OHLCV fetch: %v", err))
 					time.Sleep(refreshInterval)
 					continue
 				}
-				rsiprices, err := getHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
+				rsiprices, err := exchange.GetHistoricalPrices(client, ticker, cfg.Indicators.Rsi.Interval, period)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("RSI prices: %v", err))
 					time.Sleep(refreshInterval)
@@ -615,7 +617,7 @@ func dynamicTradeLoop(
 
 				price := ohlcv.Closes[len(ohlcv.Closes)-1]
 				prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
-				rsi := calculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
+				rsi := indicator.CalculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
 				dash.UpdatePrice(price, prevPrice, roundPrice)
 
 				pnl := (entryPrice - price) / entryPrice * 100
@@ -635,7 +637,7 @@ func dynamicTradeLoop(
 						trailingStopPrice := lowestPrice * (1 + cfg.TrailingStop.TrailingPct/100)
 						if price >= trailingStopPrice {
 							dash.SetPhase("TRAILING STOP")
-							buyBackQty := roundFloat(sellProceeds/price, roundAmount)
+							buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
 							buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 							if err != nil {
 								dash.LogError(fmt.Sprintf("Trailing-Stop MARKET BUY failed: %v", err))
@@ -655,7 +657,7 @@ func dynamicTradeLoop(
 				// ATR-based dynamic stop-loss
 				effectiveSL := stopLoss
 				if cfg.ScalpMode.ATRStopLoss && cfg.Indicators.Atr.Period > 0 {
-					atr := calculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+					atr := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
 					if len(atr) > 0 {
 						atrMultiplier := cfg.ScalpMode.ATRMultiplier
 						if atrMultiplier <= 0 {
@@ -674,7 +676,7 @@ func dynamicTradeLoop(
 				stopLossPrice := entryPrice * (1 + effectiveSL/100)
 				if price >= stopLossPrice {
 					dash.SetPhase("STOP LOSS")
-					buyBackQty := roundFloat(sellProceeds/price, roundAmount)
+					buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
 					buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 					if err != nil {
 						dash.LogError(fmt.Sprintf("Stop-Loss MARKET BUY failed: %v", err))
@@ -711,7 +713,7 @@ func dynamicTradeLoop(
 				rsiExitOk := rsiRising || (cfg.ScalpMode.Enabled && !cfg.ScalpMode.RequireRSIExit)
 				if price <= profitPrice && rsiExitOk && aiBuyApproved {
 					dash.SetPhase("TAKE PROFIT")
-					buyBackQty := roundFloat(sellProceeds/price, roundAmount)
+					buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
 					buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
 					if err != nil {
 						dash.LogError(fmt.Sprintf("BUY order failed: %v", err))

@@ -1,4 +1,4 @@
-package main
+package strategy
 
 import (
 	"encoding/json"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wferreirauy/binance-bot/config"
+	"github.com/wferreirauy/binance-bot/exchange"
 	"github.com/wferreirauy/binance-bot/tui"
 )
 
@@ -28,11 +29,11 @@ type ticker24hrResult struct {
 
 // GainerEntry represents a single top-gainer ticker.
 type GainerEntry struct {
-	Symbol       string
-	LastPrice    float64
-	ChangePct    float64
-	Volume       float64
-	QuoteVolume  float64
+	Symbol      string
+	LastPrice   float64
+	ChangePct   float64
+	Volume      float64
+	QuoteVolume float64
 }
 
 // TopGainers launches the top gainers monitoring TUI.
@@ -114,7 +115,7 @@ func fetchTopGainers(
 	excludeSet map[string]bool,
 	limit int,
 ) ([]GainerEntry, error) {
-	resp, err := http.Get(baseurl + "/api/v3/ticker/24hr")
+	resp, err := http.Get(exchange.BaseURL + "/api/v3/ticker/24hr")
 	if err != nil {
 		return nil, fmt.Errorf("24hr ticker: %w", err)
 	}

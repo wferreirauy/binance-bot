@@ -1,116 +1,25 @@
-package main
+package indicator
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"math"
-	"strconv"
-	"strings"
-	"time"
-
-	binance_connector "github.com/binance/binance-connector-go"
-	color "github.com/fatih/color"
 )
 
-// Get price of a ticker symbol
-func GetPrice(client *binance_connector.Client, symbol string) (float64, error) {
-	p, err := client.NewTickerPriceService().
-		Symbol(symbol).Do(context.Background())
-	if err != nil {
-		return 0.0, fmt.Errorf("price: could not get price: %w", err)
-	}
-	price, err := strconv.ParseFloat(p.Price, 64)
-	if err != nil {
-		return 0.0, fmt.Errorf("price: could not convert price to float: %w", err)
-	}
-
-	if price > 0 {
-		return price, nil
-	}
-	return 0.0, fmt.Errorf("price: could not get price: %w", err)
+// RoundFloat returns a float rounded by the given precision
+func RoundFloat(val float64, precision uint) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
 
-// Print current ticker price
-func printPrice(writer io.Writer, ticker string, price, prevPrice float64, round uint) {
-	red := color.New(color.FgHiRed, color.Bold).SprintFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-	yellow := color.New(color.FgHiYellow, color.Bold).SprintFunc()
-	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
-
-	scoin, dcoin, found := strings.Cut(ticker, "/")
-	if !found {
-		log.Fatal("ticker malformed, \"/\" is missing ")
-	}
-
-	now := time.Now().Format("02/01/2006 15:04:05")
-	switch {
-	case price < prevPrice:
-		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
-			now, yellow(scoin), red(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
-	case price > prevPrice:
-		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
-			now, yellow(scoin), green(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
-	default:
-		fmt.Fprintf(writer, "%s %s PRICE is %s %s\n",
-			now, yellow(scoin), white(strconv.FormatFloat(price, 'f', int(round), 64)), dcoin)
-	}
-}
-
-// Get Historical Prices for a period
-func getHistoricalPrices(client *binance_connector.Client, symbol, interval string, period int) ([]float64, error) {
-	klines, err := client.NewKlinesService().Symbol(symbol).
-		Interval(interval).
-		Limit(period).
-		Do(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	var prices []float64
-	for _, k := range klines {
-		price, err := strconv.ParseFloat(k.Close, 64)
-		if err != nil {
-			return nil, err
-		}
-		prices = append(prices, price)
-	}
-	return prices, nil
-}
-
-// Tendency
-func getTendency(client *binance_connector.Client, ticker, timePeriod string, period int) (string, error) {
-	hp, err := getHistoricalPrices(client, ticker, timePeriod, period)
-	if err != nil {
-		return "", err
-	}
-	var tendency string
-	dema := calculateDEMA(hp, 9)
-	if ema, _ := calculateEMA(hp, period); len(ema) > 0 {
-		if dema[len(dema)-1] > ema[len(ema)-1] {
-			tendency = "up"
-		} else if dema[len(dema)-1] < ema[len(ema)-1] {
-			tendency = "down"
-		}
-	} else {
-		tendency = "up"
-	}
-	return tendency, nil
-}
-
-// RSI
-func calculateRSI(prices []float64, period int) []float64 {
-	// Validation to avoid errors if there are not enough prices
+// CalculateRSI computes the Relative Strength Index
+func CalculateRSI(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return []float64{}
 	}
 
-	// Initialize the list of RSI values
 	rsiValues := make([]float64, 0, len(prices)-period+1)
 
-	// Initial calculation of gains and losses
 	var gains, losses float64
 	for i := 1; i <= period; i++ {
 		change := prices[i] - prices[i-1]
@@ -121,13 +30,11 @@ func calculateRSI(prices []float64, period int) []float64 {
 		}
 	}
 
-	// Initial RSI calculation
 	avgGain := gains / float64(period)
 	avgLoss := losses / float64(period)
 	initialRS := avgGain / avgLoss
 	rsiValues = append(rsiValues, 100-(100/(1+initialRS)))
 
-	// Calculate RSI for the remaining prices
 	for i := period; i < len(prices); i++ {
 		change := prices[i] - prices[i-1]
 		if change > 0 {
@@ -145,8 +52,8 @@ func calculateRSI(prices []float64, period int) []float64 {
 	return rsiValues
 }
 
-// SMA
-func calculateSMA(prices []float64, period int) []float64 {
+// CalculateSMA computes the Simple Moving Average
+func CalculateSMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return []float64{}
 	}
@@ -164,12 +71,12 @@ func calculateSMA(prices []float64, period int) []float64 {
 	return sma
 }
 
-// EMA
-func calculateEMA(prices []float64, period int) ([]float64, error) {
+// CalculateEMA computes the Exponential Moving Average
+func CalculateEMA(prices []float64, period int) ([]float64, error) {
 	if len(prices) < period {
 		return []float64{}, fmt.Errorf("number of prices is less than the defined period")
 	}
-	multiplier := 2.0 / float64(period+1) // 0.0952381
+	multiplier := 2.0 / float64(period+1)
 	ema := make([]float64, len(prices))
 	ema[0] = prices[0]
 
@@ -180,14 +87,14 @@ func calculateEMA(prices []float64, period int) ([]float64, error) {
 	return ema, nil
 }
 
-// DEMA
-func calculateDEMA(prices []float64, period int) []float64 {
+// CalculateDEMA computes the Double Exponential Moving Average
+func CalculateDEMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return []float64{}
 	}
 
-	ema1, _ := calculateEMA(prices, period)
-	ema2, _ := calculateEMA(ema1, period)
+	ema1, _ := CalculateEMA(prices, period)
+	ema2, _ := CalculateEMA(ema1, period)
 
 	dema := make([]float64, len(prices))
 	for i := range prices {
@@ -197,22 +104,20 @@ func calculateDEMA(prices []float64, period int) []float64 {
 	return dema
 }
 
-// MACD
-func calculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) ([]float64, []float64) {
-	fastEMA, _ := calculateEMA(prices, fastPeriod)
-	slowEMA, _ := calculateEMA(prices, slowPeriod)
+// CalculateMACD computes MACD line and signal line
+func CalculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) ([]float64, []float64) {
+	fastEMA, _ := CalculateEMA(prices, fastPeriod)
+	slowEMA, _ := CalculateEMA(prices, slowPeriod)
 
 	macdLine := make([]float64, len(prices))
 	for i := 0; i < len(prices); i++ {
 		macdLine[i] = fastEMA[i] - slowEMA[i]
 	}
 
-	signalLine, _ := calculateEMA(macdLine, signalPeriod)
+	signalLine, _ := CalculateEMA(macdLine, signalPeriod)
 
 	return macdLine, signalLine
 }
-
-// Bollinger Bands
 
 // BollingerBands stores the upper, middle (SMA), and lower bands
 type BollingerBands struct {
@@ -240,16 +145,10 @@ func CalculateBollingerBands(prices []float64, period int, multiplier float64) (
 	var upperBand, middleBand, lowerBand []float64
 
 	for i := 0; i <= len(prices)-period; i++ {
-		// Slice the period
 		window := prices[i : i+period]
-
-		// Calculate SMA
-		sma := calculateSMA(window, period)
-
-		// Calculate Standard Deviation
+		sma := CalculateSMA(window, period)
 		stdDev := standardDeviation(window, sma[len(sma)-1])
 
-		// Calculate Bands
 		upper := sma[len(sma)-1] + multiplier*stdDev
 		lower := sma[len(sma)-1] - multiplier*stdDev
 
@@ -265,65 +164,8 @@ func CalculateBollingerBands(prices []float64, period int, multiplier float64) (
 	}, nil
 }
 
-// OHLCV stores full candlestick data
-type OHLCV struct {
-	Opens   []float64
-	Highs   []float64
-	Lows    []float64
-	Closes  []float64
-	Volumes []float64
-}
-
-// getHistoricalOHLCV retrieves full OHLCV candlestick data for a period
-func getHistoricalOHLCV(client *binance_connector.Client, symbol, interval string, period int) (*OHLCV, error) {
-	klines, err := client.NewKlinesService().Symbol(symbol).
-		Interval(interval).
-		Limit(period).
-		Do(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	ohlcv := &OHLCV{
-		Opens:   make([]float64, 0, len(klines)),
-		Highs:   make([]float64, 0, len(klines)),
-		Lows:    make([]float64, 0, len(klines)),
-		Closes:  make([]float64, 0, len(klines)),
-		Volumes: make([]float64, 0, len(klines)),
-	}
-
-	for _, k := range klines {
-		o, err := strconv.ParseFloat(k.Open, 64)
-		if err != nil {
-			return nil, fmt.Errorf("price: could not convert open to float: %w", err)
-		}
-		h, err := strconv.ParseFloat(k.High, 64)
-		if err != nil {
-			return nil, fmt.Errorf("price: could not convert high to float: %w", err)
-		}
-		l, err := strconv.ParseFloat(k.Low, 64)
-		if err != nil {
-			return nil, fmt.Errorf("price: could not convert low to float: %w", err)
-		}
-		c, err := strconv.ParseFloat(k.Close, 64)
-		if err != nil {
-			return nil, fmt.Errorf("price: could not convert close to float: %w", err)
-		}
-		v, err := strconv.ParseFloat(k.Volume, 64)
-		if err != nil {
-			return nil, fmt.Errorf("price: could not convert volume to float: %w", err)
-		}
-		ohlcv.Opens = append(ohlcv.Opens, o)
-		ohlcv.Highs = append(ohlcv.Highs, h)
-		ohlcv.Lows = append(ohlcv.Lows, l)
-		ohlcv.Closes = append(ohlcv.Closes, c)
-		ohlcv.Volumes = append(ohlcv.Volumes, v)
-	}
-	return ohlcv, nil
-}
-
-// calculateATR computes Average True Range for volatility measurement
-func calculateATR(highs, lows, closes []float64, period int) []float64 {
+// CalculateATR computes Average True Range for volatility measurement
+func CalculateATR(highs, lows, closes []float64, period int) []float64 {
 	if len(highs) < period+1 {
 		return []float64{}
 	}
@@ -370,8 +212,8 @@ func wilderSmooth(data []float64, period int) []float64 {
 	return smoothed
 }
 
-// calculateADX computes Average Directional Index for trend strength
-func calculateADX(highs, lows, closes []float64, period int) []float64 {
+// CalculateADX computes Average Directional Index for trend strength
+func CalculateADX(highs, lows, closes []float64, period int) []float64 {
 	if len(highs) < period*2+1 {
 		return []float64{}
 	}
@@ -438,8 +280,8 @@ func calculateADX(highs, lows, closes []float64, period int) []float64 {
 	return adx
 }
 
-// calculateVWAP computes Volume Weighted Average Price
-func calculateVWAP(highs, lows, closes, volumes []float64) []float64 {
+// CalculateVWAP computes Volume Weighted Average Price
+func CalculateVWAP(highs, lows, closes, volumes []float64) []float64 {
 	if len(closes) == 0 {
 		return []float64{}
 	}
