@@ -497,7 +497,8 @@ Sentiment Data ────────┘       │         │         │
 
 ---
 
-⚠️ **Note:** Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
+> [!WARNING]
+> Always test the bot in a safe environment (e.g., testnet or small amounts) before live trading. Ensure you understand the risks and implications of using automated trading strategies.
 
 ---
 
