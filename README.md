@@ -18,35 +18,6 @@
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
-## Project Structure
-
-```
-main.go                  # CLI entry point and command definitions
-exchange/                # Binance API interactions
-  client.go              # API credentials and base URL
-  order.go               # Order placement, symbol filters, quantity adjustment
-  price.go               # Price fetching, OHLCV data, tendency detection
-indicator/               # Technical analysis (pure math, no external deps)
-  indicator.go           # RSI, EMA, DEMA, MACD, Bollinger Bands, ATR, ADX, VWAP
-  indicator_test.go      # Indicator tests
-strategy/                # Trading strategies and execution logic
-  helpers.go             # Trade execution helpers, AI dashboard, order polling
-  bull.go                # Bull (buy-low / sell-high) strategy
-  bear.go                # Bear (sell-high / buy-low) strategy
-  dynamic.go             # Auto-detect tendency and switch strategy per operation
-  topgainers.go          # Top 24h gainers monitor
-ai/                      # AI multi-agent consensus system
-  agent.go               # Orchestrator, agent types, technical snapshot
-  provider.go            # LLM client (OpenAI, DeepSeek, Claude)
-  sentiment.go           # News headlines and Fear & Greed Index
-config/                  # Configuration
-  file.go                # YAML config parsing
-tui/                     # Terminal UI (tview-based)
-  dashboard.go           # Main trading dashboard
-  gainers.go             # Top gainers dashboard
-  logger.go              # File logger with color stripping
-```
-
 ## Download
 
 #### **Download Precompiled Binary**
@@ -67,7 +38,8 @@ You can **download the precompiled binary** from the repository's release artifa
 
 ## Usage
 
-⚠️ **Warning:** This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
+> [!WARNING]
+> This bot is provided as-is. Use it at your own risk. Trading involves financial risks, and you may incur significant losses. Always test in a safe environment (e.g., a testnet and/or with small amounts) before deploying in live markets. The author is not responsible for any financial outcomes.
 
 ---
 
