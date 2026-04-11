@@ -18,6 +18,35 @@
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
+## Project Structure
+
+```
+main.go                  # CLI entry point and command definitions
+exchange/                # Binance API interactions
+  client.go              # API credentials and base URL
+  order.go               # Order placement, symbol filters, quantity adjustment
+  price.go               # Price fetching, OHLCV data, tendency detection
+indicator/               # Technical analysis (pure math, no external deps)
+  indicator.go           # RSI, EMA, DEMA, MACD, Bollinger Bands, ATR, ADX, VWAP
+  indicator_test.go      # Indicator tests
+strategy/                # Trading strategies and execution logic
+  helpers.go             # Trade execution helpers, AI dashboard, order polling
+  bull.go                # Bull (buy-low / sell-high) strategy
+  bear.go                # Bear (sell-high / buy-low) strategy
+  dynamic.go             # Auto-detect tendency and switch strategy per operation
+  topgainers.go          # Top 24h gainers monitor
+ai/                      # AI multi-agent consensus system
+  agent.go               # Orchestrator, agent types, technical snapshot
+  provider.go            # LLM client (OpenAI, DeepSeek, Claude)
+  sentiment.go           # News headlines and Fear & Greed Index
+config/                  # Configuration
+  file.go                # YAML config parsing
+tui/                     # Terminal UI (tview-based)
+  dashboard.go           # Main trading dashboard
+  gainers.go             # Top gainers dashboard
+  logger.go              # File logger with color stripping
+```
+
 ## Download
 
 #### **Download Precompiled Binary**
@@ -192,7 +221,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.6.0
+     v0.7.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>

@@ -1,4 +1,4 @@
-package main
+package exchange
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	binance "github.com/binance/binance-connector-go"
+	"github.com/wferreirauy/binance-bot/indicator"
 )
 
 // SymbolFilters holds the relevant trading filters for a symbol.
@@ -18,7 +19,7 @@ type SymbolFilters struct {
 
 // GetSymbolFilters fetches MIN_NOTIONAL and LOT_SIZE filters from Binance exchange info.
 func GetSymbolFilters(symbol string) (*SymbolFilters, error) {
-	client := binance.NewClient(apikey, secretkey, baseurl)
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
 	info, err := client.NewExchangeInfoService().Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("exchange info: %w", err)
@@ -69,14 +70,14 @@ func AdjustQuantity(qty, price float64, filters *SymbolFilters, roundPrecision u
 	if filters.StepSize > 0 {
 		qty = math.Ceil(qty/filters.StepSize) * filters.StepSize
 	}
-	qty = roundFloat(qty, roundPrecision)
+	qty = indicator.RoundFloat(qty, roundPrecision)
 	return qty, adjusted
 }
 
 // Orders fee = 0.01% (* 0.0001)
 
 func GetAllOrders(symbol string) {
-	client := binance.NewClient(apikey, secretkey, baseurl)
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
 	// Binance Get all account orders; active, canceled, or filled - GET /api/v3/allOrders
 	getAllOrders, err := client.NewGetAllOrdersService().Symbol(symbol).
 		Do(context.Background())
@@ -88,7 +89,7 @@ func GetAllOrders(symbol string) {
 }
 
 func GetOrder(symbol string, id int64) (res *binance.GetOrderResponse, err error) {
-	client := binance.NewClient(apikey, secretkey, baseurl)
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
 	order, err := client.NewGetOrderService().Symbol(symbol).OrderId(id).Do(context.Background())
 	if err != nil {
 		return &binance.GetOrderResponse{}, err
@@ -98,7 +99,7 @@ func GetOrder(symbol string, id int64) (res *binance.GetOrderResponse, err error
 
 func NewOrder(symbol, side string, quantity, price float64) (interface{}, error) {
 
-	client := binance.NewClient(apikey, secretkey, baseurl)
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
 
 	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type("LIMIT").TimeInForce("GTC").Quantity(quantity).Price(price).Do(context.Background())
@@ -111,7 +112,7 @@ func NewOrder(symbol, side string, quantity, price float64) (interface{}, error)
 
 func NewMarketOrder(symbol, side string, quantity float64) (interface{}, error) {
 
-	client := binance.NewClient(apikey, secretkey, baseurl)
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
 
 	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type("MARKET").Quantity(quantity).Do(context.Background())
