@@ -80,8 +80,8 @@ func GetHistoricalPrices(client *binance_connector.Client, symbol, interval stri
 }
 
 // GetTendency determines market tendency (up/down) using DEMA vs EMA
-func GetTendency(client *binance_connector.Client, ticker, timePeriod string, period int) (string, error) {
-	hp, err := GetHistoricalPrices(client, ticker, timePeriod, period)
+func GetTendency(client *binance_connector.Client, ticker, interval string, period int) (string, error) {
+	hp, err := GetHistoricalPrices(client, ticker, interval, period)
 	if err != nil {
 		return "", err
 	}
