@@ -156,6 +156,50 @@ func dynamicTradeLoop(
 		var isBull bool
 
 		for {
+			// Fetch OHLCV so we can update Price & Indicators panels while waiting
+			ohlcv, ohlcvErr := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
+			if ohlcvErr != nil {
+				dash.LogError(fmt.Sprintf("OHLCV fetch: %v", ohlcvErr))
+			} else if len(ohlcv.Closes) >= 2 {
+				price := ohlcv.Closes[len(ohlcv.Closes)-1]
+				prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
+				dash.UpdatePrice(price, prevPrice, roundPrice)
+
+				// Show indicators while waiting
+				dema := indicator.CalculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
+				rsi := indicator.CalculateRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length)
+				macdLine, signalLine := indicator.CalculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
+				bb, bbErr := indicator.CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
+				if bbErr == nil && len(rsi) > 0 && len(macdLine) > 1 && len(dema) > 0 {
+					macdCross := "BEARISH"
+					if macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
+						macdCross = "BULLISH"
+					}
+					var adxVal float64
+					if cfg.Indicators.Adx.Period > 0 {
+						adx := indicator.CalculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
+						if len(adx) > 0 {
+							adxVal = adx[len(adx)-1]
+						}
+					}
+					var currentVolume, avgVolume float64
+					if cfg.Indicators.Volume.MaPeriod > 0 {
+						volumeMA := indicator.CalculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
+						currentVolume = ohlcv.Volumes[len(ohlcv.Volumes)-1]
+						if len(volumeMA) > 0 {
+							avgVolume = volumeMA[len(volumeMA)-1]
+						}
+					}
+					dash.UpdateIndicators(&tui.IndicatorData{
+						RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
+						MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
+						DEMA: dema[len(dema)-1], UpperBand: bb.UpperBand[len(bb.UpperBand)-1], LowerBand: bb.LowerBand[len(bb.LowerBand)-1],
+						Tendency: "(detecting)", ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
+						Volume: currentVolume, AvgVolume: avgVolume,
+					})
+				}
+			}
+
 			var err error
 			tendency, err = exchange.GetTendency(client, ticker, cfg.Tendency.Interval, period)
 			if err != nil {
