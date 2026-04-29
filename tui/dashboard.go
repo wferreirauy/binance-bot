@@ -8,6 +8,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/wferreirauy/binance-bot/config"
 )
 
 // Dashboard manages the multi-panel terminal UI for the trading bot.
@@ -35,6 +36,7 @@ type Dashboard struct {
 	countdownStop chan struct{}
 
 	fileLogger *FileLogger
+	cfg        *config.Config
 }
 
 // NewDashboard creates a new TUI dashboard with multi-panel layout.
@@ -133,6 +135,10 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 			d.showHelp(mainLayout)
 			return nil
 		}
+		if event.Rune() == 'c' {
+			d.showConfig(mainLayout)
+			return nil
+		}
 		return event
 	})
 
@@ -166,7 +172,7 @@ func (d *Dashboard) headerText() string {
 	case "AUTO":
 		modeColor = "cyan"
 	}
-	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help",
+	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help [white]|[-] [green]c[-] config",
 		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
 }
 
@@ -195,6 +201,7 @@ func (d *Dashboard) showHelp(mainLayout *tview.Flex) {
 		"[yellow::b]Key          Action[-]\n" +
 			"[white::b]q[-]            Quit the application\n" +
 			"[white::b]h[-]            Toggle this help popup\n" +
+			"[white::b]c[-]            Show loaded configuration\n" +
 			"[white::b]Ctrl+C[-]       Force quit\n" +
 			"\n" +
 			"[yellow::b]Panels[-]\n" +
@@ -246,6 +253,111 @@ func (d *Dashboard) restoreInputCapture() {
 		}
 		if event.Rune() == 'h' {
 			d.showHelp(d.mainLayout)
+			return nil
+		}
+		if event.Rune() == 'c' {
+			d.showConfig(d.mainLayout)
+			return nil
+		}
+		return event
+	})
+}
+
+// SetConfig stores the loaded configuration for display in the config popup.
+func (d *Dashboard) SetConfig(cfg *config.Config) {
+	d.cfg = cfg
+}
+
+func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
+	cfgView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(true).
+		SetTextAlign(tview.AlignLeft)
+	cfgView.SetBorder(true).
+		SetBorderColor(tcell.ColorGreen).
+		SetTitle(" Configuration ").
+		SetTitleColor(tcell.ColorGreen)
+
+	var b strings.Builder
+	if d.cfg == nil {
+		b.WriteString(" [gray]No configuration loaded[-]\n")
+	} else {
+		c := d.cfg
+		b.WriteString("[yellow::b]Historical Prices[-]\n")
+		b.WriteString(fmt.Sprintf("  Period: [white]%d[-]  Interval: [white]%s[-]\n", c.HistoricalPrices.Period, c.HistoricalPrices.Interval))
+		b.WriteString(fmt.Sprintf("  Refresh: [white]%ds[-]\n\n", c.RefreshInterval))
+
+		b.WriteString("[yellow::b]Tendency[-]\n")
+		b.WriteString(fmt.Sprintf("  Direction: [white]%s[-]  Interval: [white]%s[-]\n", c.Tendency.Direction, c.Tendency.Interval))
+		b.WriteString(fmt.Sprintf("  HTF Enabled: [white]%v[-]  HTF Interval: [white]%s[-]\n\n", c.Tendency.HTFEnabled, c.Tendency.HTFInterval))
+
+		b.WriteString("[yellow::b]Indicators[-]\n")
+		b.WriteString(fmt.Sprintf("  RSI: interval=[white]%s[-] len=[white]%d[-] upper=[white]%d[-] mid=[white]%d[-] lower=[white]%d[-]\n",
+			c.Indicators.Rsi.Interval, c.Indicators.Rsi.Length, c.Indicators.Rsi.UpperLimit, c.Indicators.Rsi.MiddleLimit, c.Indicators.Rsi.LowerLimit))
+		b.WriteString(fmt.Sprintf("  DEMA: len=[white]%d[-]\n", c.Indicators.Dema.Length))
+		b.WriteString(fmt.Sprintf("  MACD: fast=[white]%d[-] slow=[white]%d[-] signal=[white]%d[-]\n",
+			c.Indicators.Macd.FastLength, c.Indicators.Macd.SlowLength, c.Indicators.Macd.SignalLength))
+		b.WriteString(fmt.Sprintf("  Bollinger: len=[white]%d[-] mult=[white]%.1f[-]\n",
+			c.Indicators.BollingerBands.Length, c.Indicators.BollingerBands.Multiplier))
+		b.WriteString(fmt.Sprintf("  ATR: period=[white]%d[-]\n", c.Indicators.Atr.Period))
+		b.WriteString(fmt.Sprintf("  ADX: period=[white]%d[-] threshold=[white]%d[-]\n", c.Indicators.Adx.Period, c.Indicators.Adx.Threshold))
+		b.WriteString(fmt.Sprintf("  Volume MA: period=[white]%d[-]\n\n", c.Indicators.Volume.MaPeriod))
+
+		b.WriteString("[yellow::b]Trailing Stop[-]\n")
+		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Activation: [white]%.2f%%[-]  Trail: [white]%.2f%%[-]\n\n",
+			c.TrailingStop.Enabled, c.TrailingStop.ActivationPct, c.TrailingStop.TrailingPct))
+
+		b.WriteString("[yellow::b]Scalp Mode[-]\n")
+		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Min Score: [white]%d[-]\n", c.ScalpMode.Enabled, c.ScalpMode.MinScore))
+		b.WriteString(fmt.Sprintf("  Post-Buy Delay: [white]%ds[-]  Inter-Op Delay: [white]%ds[-]\n",
+			c.ScalpMode.PostBuyDelay, c.ScalpMode.InterOpDelay))
+		b.WriteString(fmt.Sprintf("  RSI Exit: [white]%v[-]  SL Cooldown: [white]%v[-]\n",
+			c.ScalpMode.RequireRSIExit, c.ScalpMode.SLCooldown))
+		b.WriteString(fmt.Sprintf("  ATR Stop-Loss: [white]%v[-]  ATR Mult: [white]%.1f[-]\n\n",
+			c.ScalpMode.ATRStopLoss, c.ScalpMode.ATRMultiplier))
+
+		b.WriteString("[yellow::b]AI Agents[-]\n")
+		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Min Confidence: [white]%.0f%%[-]\n",
+			c.AI.Enabled, c.AI.MinConfidence*100))
+		if c.AI.Enabled {
+			b.WriteString(fmt.Sprintf("  OpenAI: [white]%s[-]\n", c.AI.Providers.OpenAI.Model))
+			b.WriteString(fmt.Sprintf("  DeepSeek: [white]%s[-]\n", c.AI.Providers.DeepSeek.Model))
+			b.WriteString(fmt.Sprintf("  Claude: [white]%s[-]\n", c.AI.Providers.Claude.Model))
+		}
+		b.WriteString("\n")
+
+		b.WriteString("[dimgray]Press [white::b]c[-][dimgray] or [white::b]Esc[-][dimgray] to close[-]")
+	}
+
+	cfgView.SetText(b.String())
+
+	// Center the config modal
+	modal := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(
+			tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(nil, 0, 1, false).
+				AddItem(cfgView, 65, 0, true).
+				AddItem(nil, 0, 1, false),
+			28, 0, true).
+		AddItem(nil, 0, 1, false)
+
+	// Overlay modal on top of main layout
+	overlay := tview.NewPages().
+		AddPage("main", mainLayout, true, true).
+		AddPage("config", modal, true, true)
+
+	d.app.SetRoot(overlay, true)
+
+	// Override input to close config on c or Esc
+	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == 'c' || event.Key() == tcell.KeyEscape {
+			d.app.SetRoot(mainLayout, true)
+			d.restoreInputCapture()
+			return nil
+		}
+		if event.Rune() == 'q' || event.Key() == tcell.KeyCtrlC {
+			d.app.Stop()
 			return nil
 		}
 		return event

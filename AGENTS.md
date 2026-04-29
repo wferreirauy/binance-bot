@@ -33,3 +33,6 @@ This includes:
 - Command arguments table
 - Trading strategy logic section
 - Configuration sections (if config fields were added/changed)
+
+## Release
+On every new changes on new branch, rewrite completely the file PR-description-draft.md, that will be used to create the PR with the new changes created. Create the file if does not exist.

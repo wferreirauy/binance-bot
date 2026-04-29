@@ -240,6 +240,7 @@ While the bot is running, the following keys are available inside the TUI:
 |-----|--------|
 | `q` / `Ctrl+C` | Quit the application |
 | `h` | Toggle the help / keyboard shortcuts popup |
+| `c` | Show loaded configuration popup |
 | `Esc` | Close any open popup |
 
 ---
