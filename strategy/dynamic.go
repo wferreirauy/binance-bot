@@ -95,6 +95,7 @@ func DynamicTrade(
 		initialMode = "BEAR (waiting)"
 	}
 	dash := tui.NewDashboard(initialMode, symbol)
+	dash.SetConfig(cfg)
 
 	// initialize file logger
 	fl, err := tui.NewFileLogger("binance-bot.log")
