@@ -115,9 +115,7 @@ func DynamicTrade(
 			BuyFactor: buyFactor, SellFactor: sellFactor,
 			RoundPrice: roundPrice, RoundAmt: roundAmount, MaxOps: max_ops,
 		})
-		if aiOrch != nil {
-			dash.LogInfo("AI Agents: [green]ENABLED[-]")
-		}
+		logStartupStatus(dash, cfg, aiOrch)
 		if strategy == "auto" {
 			dash.LogInfo("[cyan::b]AUTO MODE[-] — tendency will be detected each operation")
 		} else {

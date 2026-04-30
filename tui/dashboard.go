@@ -93,14 +93,14 @@ func NewDashboard(tradeMode, symbol string) *Dashboard {
 		SetTitle(" AI Agents ").
 		SetTitleColor(tcell.ColorMediumPurple)
 
-	// Orders log panel
+	// Activity log panel
 	d.ordersPanel = tview.NewTextView().
 		SetDynamicColors(true).
 		SetScrollable(true).
 		SetMaxLines(200)
 	d.ordersPanel.SetBorder(true).
 		SetBorderColor(tcell.ColorOrangeRed).
-		SetTitle(" Orders Log ").
+		SetTitle(" Activity Log ").
 		SetTitleColor(tcell.ColorOrangeRed)
 
 	// Left column: indicators on top, parameters below
@@ -208,7 +208,7 @@ func (d *Dashboard) showHelp(mainLayout *tview.Flex) {
 			"[cyan]Price[-]         Current price with change indicator\n" +
 			"[teal]Indicators[-]    RSI, MACD, Bollinger Bands, DEMA, ADX\n" +
 			"[mediumpurple]AI Agents[-]     Consensus from OpenAI, DeepSeek, Claude\n" +
-			"[orangered]Orders Log[-]    Trade execution and system messages\n" +
+			"[orangered]Activity Log[-]  Trade execution and system messages\n" +
 			"\n" +
 			"[dimgray]Press [white::b]h[-][dimgray] or [white::b]Esc[-][dimgray] to close[-]")
 
@@ -615,6 +615,28 @@ func signalColor(signal string) string {
 	}
 }
 
+// UpdateAIStatus shows the AI agents panel status when AI is not active.
+// missingKeys lists the environment variable names that are not set.
+func (d *Dashboard) UpdateAIStatus(enabled bool, missingKeys []string) {
+	var b strings.Builder
+	if !enabled {
+		b.WriteString(" [gray]AI agents disabled in configuration[-]\n")
+	} else if len(missingKeys) > 0 {
+		b.WriteString(" [yellow::b]⚠ Missing API Keys[-]\n\n")
+		b.WriteString(" [gray]The following environment variables are not set:[-]\n")
+		for _, key := range missingKeys {
+			b.WriteString(fmt.Sprintf("   [red]✗[-] [white]%s[-]\n", key))
+		}
+		b.WriteString("\n [gray]AI agents require at least one provider key.[-]\n")
+		b.WriteString(" [gray]Export the variables and restart the bot.[-]\n")
+	} else {
+		return
+	}
+	d.app.QueueUpdateDraw(func() {
+		d.aiPanel.SetText(b.String())
+	})
+}
+
 // UpdateAI refreshes the AI agents panel with consensus and per-agent results.
 func (d *Dashboard) UpdateAI(data *AIConsensusData) {
 	var b strings.Builder
@@ -670,7 +692,7 @@ func (d *Dashboard) SetFileLogger(fl *FileLogger) {
 	d.fileLogger = fl
 }
 
-// LogOrder appends an order event to the orders log panel.
+// LogOrder appends an order event to the activity log panel.
 func (d *Dashboard) LogOrder(text string) {
 	now := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[gray]%s[-] %s\n", now, text)
@@ -683,7 +705,7 @@ func (d *Dashboard) LogOrder(text string) {
 	}
 }
 
-// LogInfo appends an informational message to the orders log.
+// LogInfo appends an informational message to the activity log.
 func (d *Dashboard) LogInfo(msg string) {
 	now := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[gray]%s[-] [aqua]%s[-]\n", now, msg)
@@ -696,7 +718,7 @@ func (d *Dashboard) LogInfo(msg string) {
 	}
 }
 
-// LogError appends an error message to the orders log.
+// LogError appends an error message to the activity log.
 func (d *Dashboard) LogError(msg string) {
 	now := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[gray]%s[-] [red]ERROR: %s[-]\n", now, msg)

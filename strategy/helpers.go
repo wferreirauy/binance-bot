@@ -2,10 +2,12 @@ package strategy
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/wferreirauy/binance-bot/ai"
+	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/exchange"
 	"github.com/wferreirauy/binance-bot/indicator"
 	"github.com/wferreirauy/binance-bot/tui"
@@ -151,5 +153,45 @@ func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMs
 			}
 		}
 		time.Sleep(interval)
+	}
+}
+
+// logStartupStatus logs warnings about missing API keys to the Activity Log
+// and updates the AI panel status when keys are not configured.
+func logStartupStatus(dash *tui.Dashboard, cfg *config.Config, aiOrch *ai.Orchestrator) {
+	// Check Binance API keys
+	if exchange.APIKey == "" {
+		dash.LogError("[yellow]BINANCE_API_KEY[-] environment variable is not set")
+	}
+	if exchange.SecretKey == "" {
+		dash.LogError("[yellow]BINANCE_SECRET_KEY[-] environment variable is not set")
+	}
+
+	// Check AI agent keys and update AI panel
+	if cfg.AI.Enabled {
+		var missingKeys []string
+		if os.Getenv("OPENAI_API_KEY") == "" {
+			missingKeys = append(missingKeys, "OPENAI_API_KEY")
+		}
+		if os.Getenv("DEEPSEEK_API_KEY") == "" {
+			missingKeys = append(missingKeys, "DEEPSEEK_API_KEY")
+		}
+		if os.Getenv("ANTHROPIC_API_KEY") == "" {
+			missingKeys = append(missingKeys, "ANTHROPIC_API_KEY")
+		}
+
+		if len(missingKeys) > 0 {
+			for _, key := range missingKeys {
+				dash.LogInfo(fmt.Sprintf("[yellow]⚠[-] %s not set — provider disabled", key))
+			}
+		}
+
+		if aiOrch != nil {
+			dash.LogInfo("AI Agents: [green]ENABLED[-]")
+		} else {
+			dash.UpdateAIStatus(true, missingKeys)
+		}
+	} else {
+		dash.UpdateAIStatus(false, nil)
 	}
 }

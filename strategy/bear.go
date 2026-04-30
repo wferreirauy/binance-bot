@@ -101,9 +101,7 @@ func BearTrade(
 			BuyFactor: buyFactor, SellFactor: sellFactor,
 			RoundPrice: roundPrice, RoundAmt: roundAmount, MaxOps: max_ops,
 		})
-		if aiOrch != nil {
-			dash.LogInfo("AI Agents: [green]ENABLED[-]")
-		}
+		logStartupStatus(dash, cfg, aiOrch)
 		bearTradeLoop(dash, client, cfg, aiOrch, symbol, ticker, scoin, dcoin, qty, stopLoss, takeProfit, buyFactor, sellFactor, roundPrice, roundAmount, max_ops, period, interval, refreshInterval)
 	}()
 

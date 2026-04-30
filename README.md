@@ -16,7 +16,7 @@
 - **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
-- **Detailed Order Reasoning** — Orders Log shows which entry/exit conditions were met (✓/✗) before each trade
+- **Detailed Order Reasoning** — Activity Log shows which entry/exit conditions were met (✓/✗) before each trade
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
 ## Download
