@@ -43,6 +43,9 @@ func TopGainers(configFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if cfg.BaseURL != "" {
+		exchange.BaseURL = cfg.BaseURL
+	}
 
 	quoteAsset := cfg.TopGainers.QuoteAsset
 	if quoteAsset == "" {

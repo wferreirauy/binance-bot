@@ -1,4 +1,9 @@
 # Sample config.yml file
+
+# Binance API base URL (default: https://api1.binance.com)
+# Use https://testnet.binance.vision for testnet
+base-url: "https://api1.binance.com"
+
 historical-prices:
   period: 100
   interval: "1m"

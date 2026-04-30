@@ -39,6 +39,9 @@ func BullTrade(
 	if err != nil {
 		log.Fatal(err)
 	}
+	if cfg.BaseURL != "" {
+		exchange.BaseURL = cfg.BaseURL
+	}
 	period := cfg.HistoricalPrices.Period     // length period for moving average
 	interval := cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
 

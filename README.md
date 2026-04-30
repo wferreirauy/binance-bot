@@ -194,7 +194,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.7.0
+     v0.8.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -248,6 +248,21 @@ While the bot is running, the following keys are available inside the TUI:
 ## Configuration
 
 The bot is configured through a YAML file. See [sample-binance-config.yml](/sample-binance-config.yml) for a complete example.
+
+### Base URL Configuration
+
+You can override the Binance API base URL to use alternative endpoints such as the testnet:
+
+```yaml
+base-url: "https://testnet.binance.vision"
+```
+
+If omitted or empty, the default `https://api1.binance.com` (production) is used.
+
+| Environment | URL |
+|-------------|-----|
+| Production (default) | `https://api1.binance.com` |
+| Testnet | `https://testnet.binance.vision` |
 
 ### Indicators Configuration
 

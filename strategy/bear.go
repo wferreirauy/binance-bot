@@ -40,6 +40,9 @@ func BearTrade(
 	if err != nil {
 		log.Fatal(err)
 	}
+	if cfg.BaseURL != "" {
+		exchange.BaseURL = cfg.BaseURL
+	}
 	period := cfg.HistoricalPrices.Period
 	interval := cfg.HistoricalPrices.Interval
 

@@ -8,6 +8,7 @@ import (
 )
 
 type Config struct {
+	BaseURL string `yaml:"base-url"`
 	HistoricalPrices struct {
 		Period   int    `yaml:"period"`
 		Interval string `yaml:"interval"`

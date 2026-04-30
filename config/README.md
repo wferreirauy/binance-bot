@@ -4,6 +4,7 @@ This document describes every parameter available in the YAML configuration file
 
 ## Table of Contents
 
+- [Base URL](#base-url)
 - [Historical Prices](#historical-prices)
 - [Refresh Interval](#refresh-interval)
 - [Tendency](#tendency)
@@ -23,6 +24,25 @@ This document describes every parameter available in the YAML configuration file
   - [Scalping (High-Frequency)](#scalping-high-frequency)
   - [Mid-Term Trading (Swing)](#mid-term-trading-swing)
   - [Long-Term Trading (Position)](#long-term-trading-position)
+
+---
+
+## Base URL
+
+Overrides the Binance API base URL. Useful for switching between production and testnet environments.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base-url` | string | `"https://api1.binance.com"` | Binance API base URL. If omitted or empty, the default production URL is used. |
+
+| Environment | URL |
+|-------------|-----|
+| Production (default) | `https://api1.binance.com` |
+| Testnet | `https://testnet.binance.vision` |
+
+```yaml
+base-url: "https://testnet.binance.vision"
+```
 
 ---
 

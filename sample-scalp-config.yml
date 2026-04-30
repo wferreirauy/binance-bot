@@ -4,6 +4,10 @@
 # CLI example:
 #   binance-bot bt -t PEPE/USDT -a 50 --sl 1.0 --tp 0.5 -b 0.9999 -s 1.0001 -rp 8 -ra 0 -o 500 -f scalp-config.yml
 
+# Binance API base URL (default: https://api1.binance.com)
+# Use https://testnet.binance.vision for testnet
+base-url: "https://api1.binance.com"
+
 historical-prices:
   period: 50            # shorter lookback → faster indicator response
   interval: "1m"        # 1-minute candles for rapid signals
