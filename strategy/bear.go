@@ -14,9 +14,9 @@ import (
 
 	binance_connector "github.com/binance/binance-connector-go"
 	"github.com/wferreirauy/binance-bot/ai"
+	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/exchange"
 	"github.com/wferreirauy/binance-bot/indicator"
-	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/tui"
 )
 
@@ -228,7 +228,7 @@ func bearTradeLoop(
 					dash.LogError(fmt.Sprintf("AI: %v", err))
 				} else {
 					updateDashAI(dash, consensus)
-					aiApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
+					aiApproved = consensus.ShouldSellWithMinConfidence(cfg.AI.MinConfidence)
 				}
 			}
 
@@ -485,7 +485,7 @@ func bearTradeLoop(
 					dash.LogError(fmt.Sprintf("AI buy-back: %v", err))
 				} else {
 					updateDashAI(dash, consensus)
-					aiBuyApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
+					aiBuyApproved = consensus.AllowsExit(ai.SignalBuy, cfg.AI.MinConfidence)
 				}
 			}
 			rsiRising := rsi[len(rsi)-1] > rsi[len(rsi)-2]

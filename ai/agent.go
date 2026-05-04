@@ -14,9 +14,9 @@ import (
 type Signal string
 
 const (
-	SignalBuy    Signal = "BUY"
-	SignalSell   Signal = "SELL"
-	SignalHold   Signal = "HOLD"
+	SignalBuy     Signal = "BUY"
+	SignalSell    Signal = "SELL"
+	SignalHold    Signal = "HOLD"
 	SignalUnknown Signal = "UNKNOWN"
 )
 
@@ -31,32 +31,32 @@ type AgentDecision struct {
 
 // ConsensusResult aggregates decisions from all agents
 type ConsensusResult struct {
-	FinalSignal    Signal
-	BuyScore       float64
-	SellScore      float64
-	HoldScore      float64
-	AvgConfidence  float64
-	Decisions      []AgentDecision
-	SentimentData  *SentimentData
+	FinalSignal   Signal
+	BuyScore      float64
+	SellScore     float64
+	HoldScore     float64
+	AvgConfidence float64
+	Decisions     []AgentDecision
+	SentimentData *SentimentData
 }
 
 // TechnicalSnapshot contains the current state of all technical indicators
 type TechnicalSnapshot struct {
-	Symbol        string
-	Price         float64
-	PrevPrice     float64
-	RSI           float64
-	MACDLine      float64
+	Symbol         string
+	Price          float64
+	PrevPrice      float64
+	RSI            float64
+	MACDLine       float64
 	SignalLine     float64
-	PrevMACDLine  float64
+	PrevMACDLine   float64
 	PrevSignalLine float64
-	UpperBand     float64
-	LowerBand     float64
-	DEMA          float64
-	Tendency      string
-	ADX           float64
-	Volume        float64
-	AvgVolume     float64
+	UpperBand      float64
+	LowerBand      float64
+	DEMA           float64
+	Tendency       string
+	ADX            float64
+	Volume         float64
+	AvgVolume      float64
 }
 
 // FormatForPrompt returns technical data formatted for LLM consumption
@@ -99,9 +99,9 @@ func describeMACDCross(prevMACD, prevSignal, curMACD, curSignal float64) string 
 
 // Orchestrator manages multiple AI agents and produces consensus decisions
 type Orchestrator struct {
-	clients  []*LLMClient
-	cacheTTL time.Duration
-	mu       sync.Mutex
+	clients       []*LLMClient
+	cacheTTL      time.Duration
+	mu            sync.Mutex
 	lastSentiment *SentimentData
 	lastFetch     time.Time
 }
@@ -253,13 +253,18 @@ func parseAgentResponse(content, agentName string, provider Provider) AgentDecis
 		upper := strings.ToUpper(line)
 
 		if strings.HasPrefix(upper, "SIGNAL:") {
-			sigStr := strings.TrimSpace(strings.TrimPrefix(upper, "SIGNAL:"))
-			switch {
-			case strings.Contains(sigStr, "BUY"):
+			sigStr := strings.Trim(strings.TrimSpace(strings.TrimPrefix(upper, "SIGNAL:")), ".;,:")
+			if fields := strings.Fields(sigStr); len(fields) == 1 {
+				sigStr = strings.Trim(fields[0], ".;,:")
+			} else {
+				sigStr = ""
+			}
+			switch sigStr {
+			case "BUY":
 				d.Signal = SignalBuy
-			case strings.Contains(sigStr, "SELL"):
+			case "SELL":
 				d.Signal = SignalSell
-			case strings.Contains(sigStr, "HOLD"):
+			case "HOLD":
 				d.Signal = SignalHold
 			}
 		}
@@ -334,12 +339,41 @@ func buildConsensus(decisions []AgentDecision, sentiment *SentimentData) *Consen
 
 // ShouldBuy returns true if AI consensus supports buying
 func (cr *ConsensusResult) ShouldBuy() bool {
-	return cr.FinalSignal == SignalBuy && cr.AvgConfidence >= 0.5
+	return cr.ShouldBuyWithMinConfidence(0.5)
 }
 
 // ShouldSell returns true if AI consensus supports selling
 func (cr *ConsensusResult) ShouldSell() bool {
-	return cr.FinalSignal == SignalSell && cr.AvgConfidence >= 0.5
+	return cr.ShouldSellWithMinConfidence(0.5)
+}
+
+// ShouldBuyWithMinConfidence returns true if AI consensus explicitly supports buying
+// at or above the configured confidence threshold.
+func (cr *ConsensusResult) ShouldBuyWithMinConfidence(minConfidence float64) bool {
+	return cr.FinalSignal == SignalBuy && cr.AvgConfidence >= normalizedMinConfidence(minConfidence)
+}
+
+// ShouldSellWithMinConfidence returns true if AI consensus explicitly supports selling
+// at or above the configured confidence threshold.
+func (cr *ConsensusResult) ShouldSellWithMinConfidence(minConfidence float64) bool {
+	return cr.FinalSignal == SignalSell && cr.AvgConfidence >= normalizedMinConfidence(minConfidence)
+}
+
+// AllowsExit returns true unless AI gives a confident signal against the requested
+// exit action. This prevents low-confidence AI output from blocking profit-taking.
+func (cr *ConsensusResult) AllowsExit(exitSignal Signal, minConfidence float64) bool {
+	minConfidence = normalizedMinConfidence(minConfidence)
+	if cr.AvgConfidence < minConfidence {
+		return true
+	}
+	return cr.FinalSignal == exitSignal || cr.FinalSignal == SignalHold
+}
+
+func normalizedMinConfidence(minConfidence float64) float64 {
+	if minConfidence <= 0 || minConfidence > 1 {
+		return 0.5
+	}
+	return minConfidence
 }
 
 // String returns a human-readable summary
