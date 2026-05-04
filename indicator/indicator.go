@@ -32,8 +32,7 @@ func CalculateRSI(prices []float64, period int) []float64 {
 
 	avgGain := gains / float64(period)
 	avgLoss := losses / float64(period)
-	initialRS := avgGain / avgLoss
-	rsiValues = append(rsiValues, 100-(100/(1+initialRS)))
+	rsiValues = append(rsiValues, rsiFromAvgs(avgGain, avgLoss))
 
 	for i := period; i < len(prices); i++ {
 		change := prices[i] - prices[i-1]
@@ -45,11 +44,24 @@ func CalculateRSI(prices []float64, period int) []float64 {
 			avgLoss = ((avgLoss * float64(period-1)) - change) / float64(period)
 		}
 
-		rs := avgGain / avgLoss
-		rsiValues = append(rsiValues, 100-(100/(1+rs)))
+		rsiValues = append(rsiValues, rsiFromAvgs(avgGain, avgLoss))
 	}
 
 	return rsiValues
+}
+
+// rsiFromAvgs converts smoothed gains/losses into an RSI value, treating an
+// all-up window (avgLoss == 0) as RSI = 100 and an all-down window
+// (avgGain == 0) as RSI = 0 instead of dividing by zero.
+func rsiFromAvgs(avgGain, avgLoss float64) float64 {
+	if avgLoss == 0 {
+		if avgGain == 0 {
+			return 50
+		}
+		return 100
+	}
+	rs := avgGain / avgLoss
+	return 100 - (100 / (1 + rs))
 }
 
 // CalculateSMA computes the Simple Moving Average
@@ -104,17 +116,34 @@ func CalculateDEMA(prices []float64, period int) []float64 {
 	return dema
 }
 
-// CalculateMACD computes MACD line and signal line
+// CalculateMACD computes MACD line and signal line.
+// Returns empty slices if there are not enough prices for the slow period or
+// the signal smoothing — callers must defensively check len() before indexing.
 func CalculateMACD(prices []float64, fastPeriod, slowPeriod, signalPeriod int) ([]float64, []float64) {
-	fastEMA, _ := CalculateEMA(prices, fastPeriod)
-	slowEMA, _ := CalculateEMA(prices, slowPeriod)
+	if fastPeriod <= 0 || slowPeriod <= 0 || signalPeriod <= 0 {
+		return []float64{}, []float64{}
+	}
+	if len(prices) < slowPeriod || len(prices) < fastPeriod {
+		return []float64{}, []float64{}
+	}
+	fastEMA, errF := CalculateEMA(prices, fastPeriod)
+	slowEMA, errS := CalculateEMA(prices, slowPeriod)
+	if errF != nil || errS != nil || len(fastEMA) != len(slowEMA) {
+		return []float64{}, []float64{}
+	}
 
 	macdLine := make([]float64, len(prices))
 	for i := 0; i < len(prices); i++ {
 		macdLine[i] = fastEMA[i] - slowEMA[i]
 	}
 
-	signalLine, _ := CalculateEMA(macdLine, signalPeriod)
+	if len(macdLine) < signalPeriod {
+		return macdLine, []float64{}
+	}
+	signalLine, err := CalculateEMA(macdLine, signalPeriod)
+	if err != nil {
+		return macdLine, []float64{}
+	}
 
 	return macdLine, signalLine
 }

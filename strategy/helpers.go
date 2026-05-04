@@ -143,13 +143,43 @@ func logEntryConditions(dash *tui.Dashboard, mode string, conditions []entryCond
 	}
 }
 
-// waitOrderFilled polls until an order is filled, logging the result.
-func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration) {
+// orderFillTimeout caps how long waitOrderFilled may block before giving up.
+// Beyond this, the strategy goroutine continues so it can apply its own
+// risk-management logic (e.g. cancel-and-replace, stop-loss escalation, or
+// abort the run) instead of spinning forever on a stuck order or a degraded
+// API. 10 minutes is a conservative default for retail spot trading.
+const orderFillTimeout = 10 * time.Minute
+
+// waitOrderFilled polls until an order is filled or orderFillTimeout elapses.
+// It returns true if the order was confirmed FILLED, false otherwise.
+// On timeout or repeated API failures it logs an error and returns so the
+// caller's loop can resume; the order is NOT cancelled here — that is left to
+// the strategy layer to decide based on context (active SL, TP, etc.).
+func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration) bool {
+	deadline := time.Now().Add(orderFillTimeout)
+	consecutiveErrs := 0
 	for {
-		if getor, err := exchange.GetOrder(ticker, orderId); err == nil {
-			if getor.Status == "FILLED" {
+		if time.Now().After(deadline) {
+			dash.LogError(fmt.Sprintf("[red]Order %d not filled within %s — giving up wait; manual review recommended[-]",
+				orderId, orderFillTimeout))
+			return false
+		}
+		getor, err := exchange.GetOrder(ticker, orderId)
+		if err != nil {
+			consecutiveErrs++
+			if consecutiveErrs == 1 || consecutiveErrs%6 == 0 {
+				dash.LogError(fmt.Sprintf("Order status fetch (id=%d): %v", orderId, err))
+			}
+		} else {
+			consecutiveErrs = 0
+			switch getor.Status {
+			case "FILLED":
 				dash.LogOrder(filledMsg)
-				return
+				return true
+			case "CANCELED", "REJECTED", "EXPIRED":
+				dash.LogError(fmt.Sprintf("[red]Order %d ended in status %s — aborting wait[-]",
+					orderId, getor.Status))
+				return false
 			}
 		}
 		time.Sleep(interval)
