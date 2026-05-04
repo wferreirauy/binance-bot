@@ -62,9 +62,10 @@ scalp-mode:
   atr-stop-loss: true    # dynamically widen SL based on current volatility
   atr-multiplier: 1.5    # SL = max(configured, 1.5 × ATR%)
 
-# AI — use cautiously for scalp mode due to latency; ideal for post-trade analysis and refining strategy over time rather than real-time decision-making
+# AI — disabled by default for scalp mode to avoid adding LLM latency to fast entry/exit paths.
+# Enable only if slower decisions are acceptable and you want explicit AI approval before entries.
 ai:
-  enabled: true
+  enabled: false
   providers:
     openai:
       model: "gpt-4o-mini"
@@ -72,7 +73,7 @@ ai:
       model: "deepseek-chat"
     claude:
       model: "claude-3-5-haiku-20241022"
-  min-confidence: 0.3
+  min-confidence: 0.5    # entries require matching AI signal at or above this confidence when AI is enabled
 
 top-gainers:
   quote-asset: "USDT"

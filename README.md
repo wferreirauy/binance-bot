@@ -10,7 +10,7 @@
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
 - **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
-- **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; acts as a mandatory approval gate for trade entries and take-profit exits
+- **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; when enabled, entries require explicit AI approval at the configured confidence threshold
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
 - **Trailing Stop-Loss** — Dynamically locks in profits as price moves favorably
 - **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
@@ -145,7 +145,7 @@ binance-bot -f sample-scalp-config.yml bull-trade -t "PEPE/USDT" -a 50 --sl 0.6 
 This example:
 - Uses 1-minute candles and a scoring-based entry (any 3 of 6 signals bullish).
 - Sets tight stop-loss / take-profit suitable for volatile low-cap tokens.
-- Runs up to 500 operations with only 5s between them for maximum trade frequency.
+- Runs up to 500 operations with only 10s between completed operations.
 - See [sample-scalp-config.yml](/sample-scalp-config.yml) for the full config.
 
 #### Top Gainers Monitor
@@ -194,7 +194,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.8.0
+     v0.8.1
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -390,7 +390,7 @@ ai:
 - **CryptoCompare** — latest news headlines for the traded coin
 - **Alternative.me Fear & Greed Index** — overall crypto market mood
 
-> Set `ai.enabled: false` or omit all provider API keys to disable AI and run on technical indicators only.
+> Set `ai.enabled: false` or omit all provider API keys to disable AI and run on technical indicators only. This is recommended for low-latency scalp configurations unless you intentionally want slower AI-gated entries.
 
 ### File Logging
 
@@ -438,7 +438,7 @@ In **classic mode**, the bot places a buy order when **all** of the following co
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
 6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average, avoiding false breakouts.
-7. **AI Consensus** *(if enabled)*: The multi-agent system approves the entry or does not contradict it.
+7. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
 
 #### **Sell Conditions**
 The bot will exit a position through one of three mechanisms:
@@ -465,7 +465,7 @@ The bot will open a short position (sell) when:
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Upper Band than the Lower Band, suggesting a potential reversal from overbought conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX confirms the trend has strength.
 6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average.
-7. **AI Consensus** *(if enabled)*: The multi-agent system approves the entry.
+7. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
 
 #### **Buy-Back Exit Conditions**
 The bot will exit the bear position (buy back) through one of three mechanisms:
@@ -516,9 +516,9 @@ Sentiment Data ────────┘       │         │         │
                           OpenAI    DeepSeek    Claude
 ```
 
-- **Entry signals**: Technical conditions must pass first, then AI must approve (or at least HOLD). If AI returns a contradicting signal with ≥50% confidence, the trade is **blocked** regardless of how many technical indicators are favorable.
+- **Entry signals**: Technical conditions must pass first, then AI must explicitly approve with the matching signal (`BUY` for bull entry, `SELL` for bear entry) at or above `ai.min-confidence`. `HOLD`, low-confidence, malformed, or opposing AI output blocks new exposure.
 - **Stop-loss / trailing-stop exits**: Execute **immediately** without waiting for AI — safety first.
-- **Take-profit exits**: Require AI confirmation to avoid exiting too early in strong trends.
+- **Take-profit exits**: AI is allowed to block the exit only when it gives a confident opposite signal. `HOLD` and low-confidence output do not prevent taking profit once the technical exit checks pass.
 
 > [!NOTE]
 > The AI consensus is considered alongside — not instead of — the technical indicators. Both must agree for a trade to execute. This dual-confirmation approach reduces false signals while preserving protective exits.

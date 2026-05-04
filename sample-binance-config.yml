@@ -68,7 +68,7 @@ ai:
       model: "deepseek-chat"       # free tier available
     claude:
       model: "claude-3-5-haiku-20241022"  # most affordable Claude
-  min-confidence: 0.5              # minimum AI confidence to act on signal
+  min-confidence: 0.5              # entries require matching AI signal at or above this confidence
 
 # Top gainers monitor configuration
 top-gainers:

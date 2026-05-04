@@ -14,9 +14,9 @@ import (
 
 	binance_connector "github.com/binance/binance-connector-go"
 	"github.com/wferreirauy/binance-bot/ai"
+	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/exchange"
 	"github.com/wferreirauy/binance-bot/indicator"
-	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/tui"
 )
 
@@ -200,29 +200,6 @@ func dynamicTradeLoop(
 						Volume: currentVolume, AvgVolume: avgVolume,
 					})
 
-					// AI analysis while waiting for tendency
-					if aiOrch != nil {
-						snapshot := &ai.TechnicalSnapshot{
-							Symbol: symbol, Price: price, PrevPrice: prevPrice,
-							RSI: rsi[len(rsi)-1], MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1],
-							PrevMACDLine: macdLine[len(macdLine)-2], PrevSignalLine: signalLine[len(signalLine)-2],
-							UpperBand: bb.UpperBand[len(bb.UpperBand)-1], LowerBand: bb.LowerBand[len(bb.LowerBand)-1],
-							DEMA: dema[len(dema)-1], Tendency: "(detecting)",
-							ADX: adxVal, Volume: currentVolume, AvgVolume: avgVolume,
-						}
-						aiMode := "BULL"
-						if strategy == "bear" {
-							aiMode = "BEAR"
-						}
-						ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-						consensus, aiErr := aiOrch.Analyze(ctx, snapshot, aiMode)
-						cancel()
-						if aiErr != nil {
-							dash.LogError(fmt.Sprintf("AI: %v", aiErr))
-						} else {
-							updateDashAI(dash, consensus)
-						}
-					}
 				}
 			}
 
@@ -393,9 +370,9 @@ func dynamicTradeLoop(
 				} else {
 					updateDashAI(dash, consensus)
 					if isBull {
-						aiApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
+						aiApproved = consensus.ShouldBuyWithMinConfidence(cfg.AI.MinConfidence)
 					} else {
-						aiApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
+						aiApproved = consensus.ShouldSellWithMinConfidence(cfg.AI.MinConfidence)
 					}
 				}
 			}
@@ -741,7 +718,7 @@ func dynamicTradeLoop(
 						dash.LogError(fmt.Sprintf("AI sell: %v", err))
 					} else {
 						updateDashAI(dash, consensus)
-						aiSellApproved = consensus.ShouldSell() || consensus.FinalSignal == ai.SignalHold
+						aiSellApproved = consensus.AllowsExit(ai.SignalSell, cfg.AI.MinConfidence)
 					}
 				}
 				rsiDeclining := rsi[len(rsi)-1] < rsi[len(rsi)-2]
@@ -887,7 +864,7 @@ func dynamicTradeLoop(
 						dash.LogError(fmt.Sprintf("AI buy-back: %v", err))
 					} else {
 						updateDashAI(dash, consensus)
-						aiBuyApproved = consensus.ShouldBuy() || consensus.FinalSignal == ai.SignalHold
+						aiBuyApproved = consensus.AllowsExit(ai.SignalBuy, cfg.AI.MinConfidence)
 					}
 				}
 				rsiRising := rsi[len(rsi)-1] > rsi[len(rsi)-2]
