@@ -10,6 +10,10 @@
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
 - **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
+- **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
+- **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading
+- **Managed Orders** — Optional buy/sell timeouts with partial-fill handling for stale limit orders
+- **Persistent History API** — Stores trade/scout history in JSONL and serves it through a small local HTTP API
 - **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; when enabled, entries require explicit AI approval at the configured confidence threshold
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
 - **Trailing Stop-Loss** — Dynamically locks in profits as price moves favorably
@@ -19,6 +23,7 @@
 - **Config Validation** — Checks the YAML config file before starting a trading session
 - **Detailed Order Reasoning** — Activity Log shows which entry/exit conditions were met (✓/✗) before each trade
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
+- **Fee-Aware Targets** — Take-profit thresholds can be adjusted by live Binance taker fees plus a configurable safety buffer
 
 ## Download
 
@@ -157,6 +162,30 @@ binance-bot -f binance-config.yml top-gainers
 
 Launches a real-time TUI listing the top 24h price-change gainers on Binance, filtered by quote asset, minimum volume, and an exclude list. Refreshes on the configured `poll-interval`. Press `q` to quit.
 
+#### Rotation Scout Mode
+
+```bash
+binance-bot -f binance-config.yml rotate-trade
+```
+
+Scans the configured `rotation.supported-assets` basket against `rotation.bridge-asset` and records every scout comparison to `.binance-bot/scouts.jsonl`. When a relative-ratio opportunity beats fee-adjusted thresholds, the bot rotates from the current asset into the selected asset through the bridge. The sample config runs this mode as `dry-run: true`; switch it off only after validating behavior with small balances.
+
+#### Backtest
+
+```bash
+binance-bot -f binance-config.yml backtest -t "BTC/USDT" --strategy classic-bull
+```
+
+Runs a registered strategy over recent Binance candles using the configured indicators, starting balance, and fee assumptions. Available strategies are `classic-bull` and `scalp-bull`.
+
+#### History API
+
+```bash
+binance-bot -f binance-config.yml serve
+```
+
+Starts a local HTTP server using `api.address`. Endpoints include `/api/health`, `/api/trades`, `/api/scouts`, `/api/values`, and `/api/current-asset`. Use `?limit=100` on history endpoints to read only the most recent records.
+
 #### Validate Configuration
 
 ```bash
@@ -203,7 +232,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.9.0
+     v0.10.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -213,6 +242,9 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      bear-trade, brt   Start a bear trade run (sell high, buy back low)
      auto-trade, at    Automatically detect market tendency and trade accordingly (bull or bear)
      top-gainers, tg   Monitor top market gainers in real-time
+     rotate-trade, rt  Scout a basket of assets and rotate through the configured bridge asset
+     backtest, btst    Backtest a registered strategy on recent Binance candles
+     serve, srv        Serve persisted trade, scout, and value history over HTTP
      validate-config, vc  Validate the configured YAML file without starting a trading session
      help, h           Shows a list of commands or help for one command
 
@@ -288,6 +320,25 @@ binance-bot -f binance-config.yml validate-config
 ```
 
 The command checks fields such as Binance candle intervals, RSI limit ordering, MACD length ordering, confidence ranges, positive refresh and polling intervals, and top-gainers settings. It reports all validation failures at once and does not call Binance or any AI provider.
+
+### Persistence, Fees, and Orders
+
+```yaml
+data-dir: ".binance-bot"
+
+order-management:
+  buy-timeout-minutes: 20
+  sell-timeout-minutes: 20
+  partial-fill-action: "keep"
+  poll-interval-secs: 5
+
+fees:
+  enabled: true
+  default-taker-pct: 0.1
+  buffer-pct: 0.05
+```
+
+The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
 
 ### Indicators Configuration
 
@@ -386,6 +437,31 @@ top-gainers:
   exclude-symbols:         # symbols to always exclude
     - "USDCUSDT"
 ```
+
+### Rotation, Backtest, and API Configuration
+
+```yaml
+rotation:
+  bridge-asset: "USDT"
+  current-asset: "BTC"
+  supported-assets: ["BTC", "ETH", "SOL", "XRP", "DOGE"]
+  scout-multiplier: 5
+  scout-margin-pct: 0.8
+  use-margin: false
+  scout-sleep-seconds: 5
+  dry-run: true
+  max-jumps: 0
+  min-notional-buffer: 1.01
+
+backtest:
+  initial-balance: 1000
+  fee-pct: 0.1
+
+api:
+  address: "127.0.0.1:8080"
+```
+
+Rotation mode persists its current asset in `data-dir/current_asset.json`. Backtests use recent Binance candles and append simulated trade records. The API server exposes persisted JSONL history from the configured address.
 
 ### AI Configuration
 

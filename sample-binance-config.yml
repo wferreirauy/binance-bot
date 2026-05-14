@@ -3,11 +3,24 @@
 # Binance API base URL (default: https://api1.binance.com)
 # Use https://testnet.binance.vision for testnet
 base-url: "https://api1.binance.com"
+data-dir: ".binance-bot"
 
 historical-prices:
   period: 100
   interval: "1m"
 refresh-interval: 10  # seconds between price checks (default: 10)
+
+order-management:
+  buy-timeout-minutes: 20     # cancel unfilled buy limit orders after this many minutes; 0 disables timeout
+  sell-timeout-minutes: 20    # cancel unfilled sell limit orders after this many minutes; 0 disables timeout
+  partial-fill-action: "keep" # keep or reverse partially filled timeout orders
+  poll-interval-secs: 5       # order status polling cadence
+
+fees:
+  enabled: true
+  default-taker-pct: 0.1      # fallback taker fee percent when Binance fee lookup is unavailable
+  buffer-pct: 0.05            # extra target buffer subtracted from take-profit decisions
+
 tendency:
   interval: "3m"
   direction: "up"
@@ -78,3 +91,27 @@ top-gainers:
   min-volume: 1000000              # minimum 24h quote volume to include
   exclude-symbols:                 # symbols to exclude from results
     - "USDCUSDT"
+
+rotation:
+  bridge-asset: "USDT"
+  current-asset: "BTC"              # initial asset; persisted state overrides this after first run
+  supported-assets:
+    - "BTC"
+    - "ETH"
+    - "SOL"
+    - "XRP"
+    - "DOGE"
+  scout-multiplier: 5               # fee multiplier used by relative-ratio scout mode
+  scout-margin-pct: 0.8             # used when use-margin is true
+  use-margin: false
+  scout-sleep-seconds: 5
+  dry-run: true                     # set false only after testing with small balances
+  max-jumps: 0                      # 0 means run until stopped
+  min-notional-buffer: 1.01
+
+backtest:
+  initial-balance: 1000
+  fee-pct: 0.1
+
+api:
+  address: "127.0.0.1:8080"

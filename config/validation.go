@@ -17,10 +17,34 @@ func (c *Config) Validate() []error {
 			errs = append(errs, fmt.Errorf("base-url must be a valid absolute URL"))
 		}
 	}
+	if c.DataDir == "" {
+		errs = append(errs, fmt.Errorf("data-dir must not be empty"))
+	}
 
 	errs = appendPositiveInt(errs, "historical-prices.period", c.HistoricalPrices.Period)
 	errs = appendInterval(errs, "historical-prices.interval", c.HistoricalPrices.Interval)
 	errs = appendPositiveInt(errs, "refresh-interval", c.RefreshInterval)
+
+	if c.OrderManagement.BuyTimeoutMinutes < 0 {
+		errs = append(errs, fmt.Errorf("order-management.buy-timeout-minutes must be greater than or equal to 0"))
+	}
+	if c.OrderManagement.SellTimeoutMinutes < 0 {
+		errs = append(errs, fmt.Errorf("order-management.sell-timeout-minutes must be greater than or equal to 0"))
+	}
+	if c.OrderManagement.PollIntervalSecs < 0 {
+		errs = append(errs, fmt.Errorf("order-management.poll-interval-secs must be greater than or equal to 0"))
+	}
+	switch c.OrderManagement.PartialFillAction {
+	case "", "keep", "reverse":
+	default:
+		errs = append(errs, fmt.Errorf("order-management.partial-fill-action must be \"keep\" or \"reverse\""))
+	}
+	if c.Fees.DefaultTakerPct < 0 {
+		errs = append(errs, fmt.Errorf("fees.default-taker-pct must be greater than or equal to 0"))
+	}
+	if c.Fees.BufferPct < 0 {
+		errs = append(errs, fmt.Errorf("fees.buffer-pct must be greater than or equal to 0"))
+	}
 
 	errs = appendInterval(errs, "tendency.interval", c.Tendency.Interval)
 	if c.Tendency.Direction != "up" && c.Tendency.Direction != "down" {
@@ -98,6 +122,37 @@ func (c *Config) Validate() []error {
 	errs = appendPositiveInt(errs, "top-gainers.poll-interval", c.TopGainers.PollInterval)
 	if c.TopGainers.MinVolume < 0 {
 		errs = append(errs, fmt.Errorf("top-gainers.min-volume must be greater than or equal to 0"))
+	}
+
+	if c.Rotation.BridgeAsset == "" {
+		errs = append(errs, fmt.Errorf("rotation.bridge-asset must not be empty"))
+	}
+	if len(c.Rotation.SupportedAssets) == 0 {
+		errs = append(errs, fmt.Errorf("rotation.supported-assets must include at least one asset"))
+	}
+	if c.Rotation.ScoutMultiplier <= 0 {
+		errs = append(errs, fmt.Errorf("rotation.scout-multiplier must be greater than 0"))
+	}
+	if c.Rotation.ScoutMarginPct < 0 {
+		errs = append(errs, fmt.Errorf("rotation.scout-margin-pct must be greater than or equal to 0"))
+	}
+	if c.Rotation.ScoutSleepSeconds <= 0 {
+		errs = append(errs, fmt.Errorf("rotation.scout-sleep-seconds must be greater than 0"))
+	}
+	if c.Rotation.MaxJumps < 0 {
+		errs = append(errs, fmt.Errorf("rotation.max-jumps must be greater than or equal to 0"))
+	}
+	if c.Rotation.MinNotionalBuffer < 0 {
+		errs = append(errs, fmt.Errorf("rotation.min-notional-buffer must be greater than or equal to 0"))
+	}
+	if c.Backtest.InitialBalance <= 0 {
+		errs = append(errs, fmt.Errorf("backtest.initial-balance must be greater than 0"))
+	}
+	if c.Backtest.FeePct < 0 {
+		errs = append(errs, fmt.Errorf("backtest.fee-pct must be greater than or equal to 0"))
+	}
+	if c.API.Address == "" {
+		errs = append(errs, fmt.Errorf("api.address must not be empty"))
 	}
 
 	return errs

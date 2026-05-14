@@ -128,6 +128,7 @@ func bearTradeLoop(
 	var sellPrice float64
 	var operation = 1
 	var consecutiveSL int // tracks consecutive stop-loss exits for cooldown
+	takeProfit = feeAdjustedTakeProfit(symbol, cfg, takeProfit, dash)
 
 	for range max_ops {
 		dash.SetOperation(operation)
@@ -356,7 +357,7 @@ func bearTradeLoop(
 					dash.LogInfo(fmt.Sprintf("SELL order #%d - Status: %s", getor.OrderId, getor.Status))
 				}
 
-				waitOrderFilled(dash, ticker, orderId, "[red::b]SELL[-] order filled!", refreshInterval)
+				waitOrderFilled(dash, ticker, orderId, "[red::b]SELL[-] order filled!", refreshInterval, cfg)
 				break
 			}
 			time.Sleep(refreshInterval)
@@ -423,7 +424,7 @@ func bearTradeLoop(
 						orderId := buyOrder.FieldByName("OrderId").Int()
 						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP MARKET BUY[-] %f %s @ ~[white::b]%.*f[-] %s",
 							buyBackQty, scoin, roundPrice, price, dcoin))
-						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP MARKET BUY[-] filled!", refreshInterval)
+						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP MARKET BUY[-] filled!", refreshInterval, cfg)
 						exitType = "ts"
 						break
 					}
@@ -465,7 +466,7 @@ func bearTradeLoop(
 				orderId := buyOrder.FieldByName("OrderId").Int()
 				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS MARKET BUY[-] %f %s @ [white::b]%.*f[-] %s (SL=%.2f%%)",
 					buyBackQty, scoin, roundPrice, price, dcoin, effectiveSL))
-				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS MARKET BUY[-] filled!", refreshInterval)
+				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS MARKET BUY[-] filled!", refreshInterval, cfg)
 				exitType = "sl"
 				break
 			}
@@ -509,7 +510,7 @@ func bearTradeLoop(
 				orderId := buyOrder.FieldByName("OrderId").Int()
 				dash.LogOrder(fmt.Sprintf("[green::b]BUY[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
 					buyBackQty, scoin, roundPrice, price, dcoin, roundPrice, price*buyBackQty, dcoin))
-				waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval)
+				waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval, cfg)
 				exitType = "tp"
 				break
 			}

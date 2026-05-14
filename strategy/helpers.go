@@ -3,6 +3,8 @@ package strategy
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/exchange"
 	"github.com/wferreirauy/binance-bot/indicator"
+	"github.com/wferreirauy/binance-bot/storage"
 	"github.com/wferreirauy/binance-bot/tui"
 )
 
@@ -95,6 +98,59 @@ func TradeMarketSell(ticker string, qty, estimatedPrice float64, round uint) (an
 	return order, nil
 }
 
+func dataStore(cfg *config.Config) *storage.Store {
+	if cfg == nil {
+		return nil
+	}
+	store, err := storage.New(cfg.DataDir)
+	if err != nil {
+		return nil
+	}
+	return store
+}
+
+func orderIDAndPrice(order any) (int64, float64) {
+	v := reflect.ValueOf(order)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	var id int64
+	var price float64
+	if f := v.FieldByName("OrderId"); f.IsValid() && f.CanInt() {
+		id = f.Int()
+	}
+	if f := v.FieldByName("Price"); f.IsValid() && f.Kind() == reflect.String {
+		price, _ = strconv.ParseFloat(f.String(), 64)
+	}
+	return id, price
+}
+
+func feeAdjustedTakeProfit(ticker string, cfg *config.Config, takeProfit float64, dash *tui.Dashboard) float64 {
+	if cfg == nil || !cfg.Fees.Enabled {
+		return takeProfit
+	}
+	symbol := strings.Replace(ticker, "/", "", -1)
+	defaultFee := cfg.Fees.DefaultTakerPct
+	if defaultFee <= 0 {
+		defaultFee = 0.1
+	}
+	feePct := exchange.GetTradeFeePct(symbol, defaultFee)
+	netTP := exchange.NetTargetPct(takeProfit, feePct, cfg.Fees.BufferPct)
+	if dash != nil && netTP != takeProfit {
+		dash.LogInfo(fmt.Sprintf("[yellow]Fee-aware TP[-] %.2f%% gross -> %.2f%% net target (fee %.4f%% x2, buffer %.2f%%)",
+			takeProfit, netTP, feePct, cfg.Fees.BufferPct))
+	}
+	return netTP
+}
+
+func recordTrade(cfg *config.Config, record storage.TradeRecord) {
+	store := dataStore(cfg)
+	if store == nil {
+		return
+	}
+	_ = store.AppendTrade(record)
+}
+
 // updateDashAI converts an ai.ConsensusResult into tui.AIConsensusData and updates the dashboard.
 func updateDashAI(dash *tui.Dashboard, cr *ai.ConsensusResult) {
 	data := &tui.AIConsensusData{
@@ -144,7 +200,70 @@ func logEntryConditions(dash *tui.Dashboard, mode string, conditions []entryCond
 }
 
 // waitOrderFilled polls until an order is filled, logging the result.
-func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration) {
+func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration, cfgs ...*config.Config) {
+	var cfg *config.Config
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
+	}
+	timeout := time.Duration(0)
+	pollInterval := interval
+	partialFillAction := "keep"
+	if cfg != nil {
+		timeoutMinutes := cfg.OrderManagement.BuyTimeoutMinutes
+		if strings.Contains(strings.ToUpper(filledMsg), "SELL") {
+			timeoutMinutes = cfg.OrderManagement.SellTimeoutMinutes
+		}
+		if timeoutMinutes > 0 {
+			timeout = time.Duration(timeoutMinutes) * time.Minute
+		}
+		if cfg.OrderManagement.PollIntervalSecs > 0 {
+			pollInterval = time.Duration(cfg.OrderManagement.PollIntervalSecs) * time.Second
+		}
+		if cfg.OrderManagement.PartialFillAction != "" {
+			partialFillAction = cfg.OrderManagement.PartialFillAction
+		}
+	}
+	if cfg != nil && timeout > 0 {
+		side := "BUY"
+		if strings.Contains(strings.ToUpper(filledMsg), "SELL") {
+			side = "SELL"
+		}
+		result, err := exchange.WaitForManagedOrder(ticker, orderId, side, timeout, pollInterval, partialFillAction)
+		if err != nil {
+			dash.LogError(fmt.Sprintf("Order #%d wait failed: %v", orderId, err))
+			return
+		}
+		if result.Order != nil {
+			price, _ := strconv.ParseFloat(result.Order.Price, 64)
+			recordTrade(cfg, storage.TradeRecord{
+				Symbol:         ticker,
+				Side:           result.Order.Side,
+				OrderID:        orderId,
+				Status:         result.Order.Status,
+				Quantity:       result.ExecutedQty,
+				Price:          price,
+				QuoteQuantity:  result.CumulativeQuoteQty,
+				Reason:         "order-status",
+				ExecutedQty:    result.ExecutedQty,
+				PartialHandled: result.PartialHandled,
+			})
+			if result.Order.Status == "FILLED" {
+				dash.LogOrder(filledMsg)
+				return
+			}
+		}
+		if result.TimedOut {
+			dash.LogInfo(fmt.Sprintf("[yellow]Order #%d timed out and was canceled[-]", orderId))
+			if result.PartialHandled {
+				dash.LogInfo(fmt.Sprintf("[yellow]Partial fill on order #%d was reversed with a market order[-]", orderId))
+			}
+			return
+		}
+		if result.Order != nil {
+			dash.LogInfo(fmt.Sprintf("[yellow]Order #%d ended with status %s[-]", orderId, result.Order.Status))
+		}
+		return
+	}
 	for {
 		if getor, err := exchange.GetOrder(ticker, orderId); err == nil {
 			if getor.Status == "FILLED" {

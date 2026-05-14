@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	binance "github.com/binance/binance-connector-go"
 	"github.com/wferreirauy/binance-bot/indicator"
@@ -15,6 +16,16 @@ type SymbolFilters struct {
 	MinNotional float64
 	MinQty      float64
 	StepSize    float64
+}
+
+type ManagedOrderResult struct {
+	Order              *binance.GetOrderResponse
+	TimedOut           bool
+	Canceled           bool
+	PartiallyFilled    bool
+	ExecutedQty        float64
+	CumulativeQuoteQty float64
+	PartialHandled     bool
 }
 
 // GetSymbolFilters fetches MIN_NOTIONAL and LOT_SIZE filters from Binance exchange info.
@@ -121,4 +132,99 @@ func NewMarketOrder(symbol, side string, quantity float64) (interface{}, error) 
 	}
 	return newOrder, nil
 
+}
+
+func CancelOrder(symbol string, orderID int64) error {
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
+	_, err := client.NewCancelOrderService().Symbol(symbol).OrderId(orderID).Do(context.Background())
+	if err != nil {
+		return fmt.Errorf("order: canceling order %d: %w", orderID, err)
+	}
+	return nil
+}
+
+func GetBalance(asset string) (float64, error) {
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
+	account, err := client.NewGetAccountService().Do(context.Background())
+	if err != nil {
+		return 0, fmt.Errorf("account: %w", err)
+	}
+	for _, balance := range account.Balances {
+		if balance.Asset != asset {
+			continue
+		}
+		free, err := strconv.ParseFloat(balance.Free, 64)
+		if err != nil {
+			return 0, fmt.Errorf("balance: parse %s: %w", asset, err)
+		}
+		return free, nil
+	}
+	return 0, nil
+}
+
+func GetTradeFeePct(symbol string, defaultPct float64) float64 {
+	client := binance.NewClient(APIKey, SecretKey, BaseURL)
+	fees, err := client.NewTradeFeeService().Symbol(symbol).Do(context.Background())
+	if err != nil || len(fees) == 0 {
+		return defaultPct
+	}
+	taker, err := strconv.ParseFloat(fees[0].TakerCommission, 64)
+	if err != nil {
+		return defaultPct
+	}
+	return taker * 100
+}
+
+func NetTargetPct(targetPct, feePct, bufferPct float64) float64 {
+	net := targetPct - 2*feePct - bufferPct
+	if net < 0 {
+		return 0
+	}
+	return net
+}
+
+func WaitForManagedOrder(symbol string, orderID int64, side string, timeout time.Duration, pollInterval time.Duration, partialFillAction string) (*ManagedOrderResult, error) {
+	if pollInterval <= 0 {
+		pollInterval = 5 * time.Second
+	}
+	started := time.Now()
+	for {
+		order, err := GetOrder(symbol, orderID)
+		if err != nil {
+			return nil, err
+		}
+		executedQty, _ := strconv.ParseFloat(order.ExecutedQty, 64)
+		cumulativeQuoteQty, _ := strconv.ParseFloat(order.CumulativeQuoteQty, 64)
+		result := &ManagedOrderResult{
+			Order:              order,
+			ExecutedQty:        executedQty,
+			CumulativeQuoteQty: cumulativeQuoteQty,
+			PartiallyFilled:    executedQty > 0 && order.Status != "FILLED",
+		}
+		switch order.Status {
+		case "FILLED":
+			return result, nil
+		case "CANCELED", "REJECTED", "EXPIRED":
+			return result, nil
+		}
+		if timeout > 0 && time.Since(started) >= timeout {
+			result.TimedOut = true
+			if err := CancelOrder(symbol, orderID); err != nil {
+				return result, err
+			}
+			result.Canceled = true
+			if result.PartiallyFilled && partialFillAction == "reverse" {
+				reverseSide := "SELL"
+				if side == "SELL" {
+					reverseSide = "BUY"
+				}
+				if _, err := NewMarketOrder(symbol, reverseSide, executedQty); err != nil {
+					return result, err
+				}
+				result.PartialHandled = true
+			}
+			return result, nil
+		}
+		time.Sleep(pollInterval)
+	}
 }

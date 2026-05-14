@@ -2,9 +2,11 @@ package exchange
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +32,34 @@ func GetPrice(client *binance_connector.Client, symbol string) (float64, error) 
 		return price, nil
 	}
 	return 0.0, fmt.Errorf("price: could not get price: %w", err)
+}
+
+func GetAllTickerPrices(client *binance_connector.Client) (map[string]float64, error) {
+	resp, err := http.Get(BaseURL + "/api/v3/ticker/price")
+	if err != nil {
+		return nil, fmt.Errorf("price: could not get all prices: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("price: read all prices: %w", err)
+	}
+	var prices []struct {
+		Symbol string `json:"symbol"`
+		Price  string `json:"price"`
+	}
+	if err := json.Unmarshal(body, &prices); err != nil {
+		return nil, fmt.Errorf("price: decode all prices: %w", err)
+	}
+	out := make(map[string]float64, len(prices))
+	for _, p := range prices {
+		price, err := strconv.ParseFloat(p.Price, 64)
+		if err != nil {
+			continue
+		}
+		out[p.Symbol] = price
+	}
+	return out, nil
 }
 
 // PrintPrice prints the current ticker price with color formatting

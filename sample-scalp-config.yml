@@ -7,12 +7,24 @@
 # Binance API base URL (default: https://api1.binance.com)
 # Use https://testnet.binance.vision for testnet
 base-url: "https://api1.binance.com"
+data-dir: ".binance-bot"
 
 historical-prices:
   period: 50            # shorter lookback → faster indicator response
   interval: "1m"        # 1-minute candles for rapid signals
 
 refresh-interval: 10    # poll every 10 seconds for faster reaction to market changes
+
+order-management:
+  buy-timeout-minutes: 5
+  sell-timeout-minutes: 5
+  partial-fill-action: "keep"
+  poll-interval-secs: 2
+
+fees:
+  enabled: true
+  default-taker-pct: 0.1
+  buffer-pct: 0.05
 
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)
@@ -82,3 +94,26 @@ top-gainers:
   min-volume: 5000000    # higher volume filter for liquid scalp targets
   exclude-symbols:
     - "USDCUSDT"
+
+rotation:
+  bridge-asset: "USDT"
+  current-asset: "DOGE"
+  supported-assets:
+    - "DOGE"
+    - "PEPE"
+    - "SHIB"
+    - "XRP"
+  scout-multiplier: 5
+  scout-margin-pct: 0.8
+  use-margin: false
+  scout-sleep-seconds: 3
+  dry-run: true
+  max-jumps: 0
+  min-notional-buffer: 1.01
+
+backtest:
+  initial-balance: 1000
+  fee-pct: 0.1
+
+api:
+  address: "127.0.0.1:8080"

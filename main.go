@@ -8,13 +8,14 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/wferreirauy/binance-bot/config"
+	"github.com/wferreirauy/binance-bot/server"
 	"github.com/wferreirauy/binance-bot/strategy"
 )
 
 func main() {
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.9.0",
+		Version:  "v0.10.0",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -249,6 +250,46 @@ func main() {
 				Action: func(cCtx *cli.Context) error {
 					strategy.TopGainers(cCtx.String("config-file"))
 					return nil
+				},
+			},
+			{
+				Name:    "rotate-trade",
+				Usage:   "Scout a basket of assets and rotate through the configured bridge asset",
+				Aliases: []string{"rt"},
+				Action: func(cCtx *cli.Context) error {
+					strategy.RotationTrade(cCtx.String("config-file"))
+					return nil
+				},
+			},
+			{
+				Name:    "backtest",
+				Usage:   "Backtest a registered strategy on recent Binance candles",
+				Aliases: []string{"btst"},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "ticker",
+						Usage:    "ticker to backtest, format ABC/USD eg. BTC/USDT",
+						Aliases:  []string{"t"},
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:    "strategy",
+						Usage:   "registered strategy name",
+						Value:   "classic-bull",
+						Aliases: []string{"st"},
+					},
+				},
+				Action: func(cCtx *cli.Context) error {
+					strategy.Backtest(cCtx.String("config-file"), cCtx.String("ticker"), cCtx.String("strategy"))
+					return nil
+				},
+			},
+			{
+				Name:    "serve",
+				Usage:   "Serve persisted trade, scout, and value history over HTTP",
+				Aliases: []string{"srv"},
+				Action: func(cCtx *cli.Context) error {
+					return server.Serve(cCtx.String("config-file"))
 				},
 			},
 			{
