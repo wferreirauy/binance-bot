@@ -16,6 +16,7 @@
 - **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
+- **Config Validation** — Checks the YAML config file before starting a trading session
 - **Detailed Order Reasoning** — Activity Log shows which entry/exit conditions were met (✓/✗) before each trade
 - **File Logging** — All trade events and errors are written to `binance-bot.log` alongside the TUI display
 
@@ -156,6 +157,14 @@ binance-bot -f binance-config.yml top-gainers
 
 Launches a real-time TUI listing the top 24h price-change gainers on Binance, filtered by quote asset, minimum volume, and an exclude list. Refreshes on the configured `poll-interval`. Press `q` to quit.
 
+#### Validate Configuration
+
+```bash
+binance-bot -f binance-config.yml validate-config
+```
+
+Reads the YAML configuration, validates required ranges and enum-like values, and exits without starting a trading session. Valid configs print `Config OK`; invalid configs print every issue found so you can fix them in one pass.
+
 Modify these parameters based on your specific trading requirements.
 
 ---
@@ -194,7 +203,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.8.1
+     v0.9.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -204,6 +213,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      bear-trade, brt   Start a bear trade run (sell high, buy back low)
      auto-trade, at    Automatically detect market tendency and trade accordingly (bull or bear)
      top-gainers, tg   Monitor top market gainers in real-time
+     validate-config, vc  Validate the configured YAML file without starting a trading session
      help, h           Shows a list of commands or help for one command
 
   GLOBAL OPTIONS:
@@ -230,6 +240,11 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
 - For help with the `top-gainers` command:
   ```bash
   binance-bot top-gainers --help
+  ```
+
+- For help with the `validate-config` command:
+  ```bash
+  binance-bot validate-config --help
   ```
 
 ### TUI Keyboard Shortcuts
@@ -263,6 +278,16 @@ If omitted or empty, the default `https://api1.binance.com` (production) is used
 |-------------|-----|
 | Production (default) | `https://api1.binance.com` |
 | Testnet | `https://testnet.binance.vision` |
+
+### Config Validation
+
+Run `validate-config` before trading to catch malformed or risky configuration values:
+
+```bash
+binance-bot -f binance-config.yml validate-config
+```
+
+The command checks fields such as Binance candle intervals, RSI limit ordering, MACD length ordering, confidence ranges, positive refresh and polling intervals, and top-gainers settings. It reports all validation failures at once and does not call Binance or any AI provider.
 
 ### Indicators Configuration
 

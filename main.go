@@ -1,18 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/strategy"
 )
 
 func main() {
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.8.1",
+		Version:  "v0.9.0",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -246,6 +248,27 @@ func main() {
 				Aliases: []string{"tg"},
 				Action: func(cCtx *cli.Context) error {
 					strategy.TopGainers(cCtx.String("config-file"))
+					return nil
+				},
+			},
+			{
+				Name:    "validate-config",
+				Usage:   "Validate the configured YAML file without starting a trading session",
+				Aliases: []string{"vc"},
+				Action: func(cCtx *cli.Context) error {
+					var c config.Config
+					cfg, err := c.Read(cCtx.String("config-file"))
+					if err != nil {
+						return err
+					}
+					errs := cfg.Validate()
+					if len(errs) > 0 {
+						for _, err := range errs {
+							fmt.Fprintf(os.Stderr, "- %v\n", err)
+						}
+						return fmt.Errorf("config validation failed with %d issue(s)", len(errs))
+					}
+					fmt.Printf("Config OK: %s\n", cCtx.String("config-file"))
 					return nil
 				},
 			},
