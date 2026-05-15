@@ -200,7 +200,10 @@ func logEntryConditions(dash *tui.Dashboard, mode string, conditions []entryCond
 }
 
 // waitOrderFilled polls until an order is filled, logging the result.
-func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration, cfgs ...*config.Config) {
+// It returns true only when Binance reports FILLED. Timeout, cancelation,
+// rejection, expiration, or wait errors return false so callers can avoid
+// advancing into the next trade phase without an actual position.
+func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMsg string, interval time.Duration, cfgs ...*config.Config) bool {
 	var cfg *config.Config
 	if len(cfgs) > 0 {
 		cfg = cfgs[0]
@@ -231,7 +234,7 @@ func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMs
 		result, err := exchange.WaitForManagedOrder(ticker, orderId, side, timeout, pollInterval, partialFillAction)
 		if err != nil {
 			dash.LogError(fmt.Sprintf("Order #%d wait failed: %v", orderId, err))
-			return
+			return false
 		}
 		if result.Order != nil {
 			price, _ := strconv.ParseFloat(result.Order.Price, 64)
@@ -249,7 +252,7 @@ func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMs
 			})
 			if result.Order.Status == "FILLED" {
 				dash.LogOrder(filledMsg)
-				return
+				return true
 			}
 		}
 		if result.TimedOut {
@@ -257,18 +260,18 @@ func waitOrderFilled(dash *tui.Dashboard, ticker string, orderId int64, filledMs
 			if result.PartialHandled {
 				dash.LogInfo(fmt.Sprintf("[yellow]Partial fill on order #%d was reversed with a market order[-]", orderId))
 			}
-			return
+			return false
 		}
 		if result.Order != nil {
 			dash.LogInfo(fmt.Sprintf("[yellow]Order #%d ended with status %s[-]", orderId, result.Order.Status))
 		}
-		return
+		return false
 	}
 	for {
 		if getor, err := exchange.GetOrder(ticker, orderId); err == nil {
 			if getor.Status == "FILLED" {
 				dash.LogOrder(filledMsg)
-				return
+				return true
 			}
 		}
 		time.Sleep(interval)

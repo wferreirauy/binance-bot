@@ -357,7 +357,12 @@ func bearTradeLoop(
 					dash.LogInfo(fmt.Sprintf("SELL order #%d - Status: %s", getor.OrderId, getor.Status))
 				}
 
-				waitOrderFilled(dash, ticker, orderId, "[red::b]SELL[-] order filled!", refreshInterval, cfg)
+				if !waitOrderFilled(dash, ticker, orderId, "[red::b]SELL[-] order filled!", refreshInterval, cfg) {
+					dash.LogInfo("[yellow]Entry SELL did not fill; returning to entry scan[-]")
+					dash.SetPhase("SCANNING SELL")
+					time.Sleep(refreshInterval)
+					continue
+				}
 				break
 			}
 			time.Sleep(refreshInterval)
@@ -424,7 +429,12 @@ func bearTradeLoop(
 						orderId := buyOrder.FieldByName("OrderId").Int()
 						dash.LogOrder(fmt.Sprintf("[fuchsia::b]TRAILING-STOP MARKET BUY[-] %f %s @ ~[white::b]%.*f[-] %s",
 							buyBackQty, scoin, roundPrice, price, dcoin))
-						waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP MARKET BUY[-] filled!", refreshInterval, cfg)
+						if !waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]TRAILING-STOP MARKET BUY[-] filled!", refreshInterval, cfg) {
+							dash.LogInfo("[yellow]Trailing-stop BUY did not fill; continuing buy-back monitoring[-]")
+							dash.SetPhase("MONITORING BUY-BACK")
+							time.Sleep(refreshInterval)
+							continue
+						}
 						exitType = "ts"
 						break
 					}
@@ -466,7 +476,12 @@ func bearTradeLoop(
 				orderId := buyOrder.FieldByName("OrderId").Int()
 				dash.LogOrder(fmt.Sprintf("[red::b]STOP-LOSS MARKET BUY[-] %f %s @ [white::b]%.*f[-] %s (SL=%.2f%%)",
 					buyBackQty, scoin, roundPrice, price, dcoin, effectiveSL))
-				waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS MARKET BUY[-] filled!", refreshInterval, cfg)
+				if !waitOrderFilled(dash, ticker, orderId, "[red::b]STOP-LOSS MARKET BUY[-] filled!", refreshInterval, cfg) {
+					dash.LogInfo("[yellow]Stop-loss BUY did not fill; continuing buy-back monitoring[-]")
+					dash.SetPhase("MONITORING BUY-BACK")
+					time.Sleep(refreshInterval)
+					continue
+				}
 				exitType = "sl"
 				break
 			}
@@ -510,7 +525,12 @@ func bearTradeLoop(
 				orderId := buyOrder.FieldByName("OrderId").Int()
 				dash.LogOrder(fmt.Sprintf("[green::b]BUY[-] %f %s @ [white::b]%.*f[-] %s = %.*f %s",
 					buyBackQty, scoin, roundPrice, price, dcoin, roundPrice, price*buyBackQty, dcoin))
-				waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval, cfg)
+				if !waitOrderFilled(dash, ticker, orderId, "[green::b]BUY[-] order filled!", refreshInterval, cfg) {
+					dash.LogInfo("[yellow]Take-profit BUY did not fill; continuing buy-back monitoring[-]")
+					dash.SetPhase("MONITORING BUY-BACK")
+					time.Sleep(refreshInterval)
+					continue
+				}
 				exitType = "tp"
 				break
 			}

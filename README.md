@@ -12,7 +12,7 @@
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
 - **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
 - **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading
-- **Managed Orders** — Optional buy/sell timeouts with partial-fill handling for stale limit orders
+- **Managed Orders** — Optional buy/sell timeouts with partial-fill handling; unfilled entries return to scanning instead of advancing to exit monitoring
 - **Persistent History API** — Stores trade/scout history in JSONL and serves it through a small local HTTP API
 - **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; when enabled, entries require explicit AI approval at the configured confidence threshold
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
@@ -232,7 +232,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.10.0
+     v0.10.1
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
