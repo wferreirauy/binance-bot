@@ -71,7 +71,7 @@ func TradeMarketBuy(ticker string, qty, estimatedPrice float64, round uint) (any
 		fmt.Printf("MARKET BUY qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewMarketOrder(tick, "BUY", adjQty)
+	order, err := exchange.NewMarketOrderWithPrice(tick, "BUY", adjQty, estimatedPrice)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func TradeMarketSell(ticker string, qty, estimatedPrice float64, round uint) (an
 		fmt.Printf("MARKET SELL qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewMarketOrder(tick, "SELL", adjQty)
+	order, err := exchange.NewMarketOrderWithPrice(tick, "SELL", adjQty, estimatedPrice)
 	if err != nil {
 		return nil, err
 	}

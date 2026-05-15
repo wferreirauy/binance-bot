@@ -13,6 +13,7 @@
 - **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
 - **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading
 - **Managed Orders** — Optional buy/sell timeouts with partial-fill handling; unfilled entries return to scanning instead of advancing to exit monitoring
+- **Pre-Order Balance Checks** — Reads Binance spot account balances before placing orders and blocks buys/sells that exceed available free funds
 - **Persistent History API** — Stores trade/scout history in JSONL and serves it through a small local HTTP API
 - **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; when enabled, entries require explicit AI approval at the configured confidence threshold
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
@@ -232,7 +233,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.10.1
+     v0.10.2
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -338,7 +339,7 @@ fees:
   buffer-pct: 0.05
 ```
 
-The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
+The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Before any limit or market order is submitted, the bot queries Binance spot account balances and verifies that the required base or quote asset is available as free balance. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
 
 ### Indicators Configuration
 
@@ -519,7 +520,7 @@ Binance enforces a minimum notional value (`price × quantity`) per symbol — t
 BUY qty adjusted from 50.00000000 to 405210.00000000 to meet exchange filters (minNotional=5.00)
 ```
 
-No manual intervention is required — the adjustment is transparent and logged.
+No manual intervention is required — the adjustment is transparent and logged. After any adjustment, the bot checks the relevant account balance before submitting the order.
 
 ---
 
@@ -541,12 +542,16 @@ In **classic mode**, the bot places a buy order when **all** of the following co
 6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average, avoiding false breakouts.
 7. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
 
+Before submitting the buy order, the bot verifies that the account has enough free quote-asset balance, such as USDT for `XRP/USDT`.
+
 #### **Sell Conditions**
 The bot will exit a position through one of three mechanisms:
 
 1. **Trailing Stop-Loss** *(if enabled)*: After the price rises by `activation-pct` above buy price, the stop trails from the highest price. Triggers when price drops by `trailing-pct` from the peak.
 2. **Fixed Stop-Loss**: The price drops to the stop-loss percentage below buy price. Executes immediately (no AI delay on protective exits).
 3. **Take Profit**: The price reaches the take-profit percentage AND RSI is declining (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
+
+Before submitting an exit sell order, the bot verifies that the account has enough free base-asset balance for the quantity being sold.
 
 ---
 
@@ -568,12 +573,16 @@ The bot will open a short position (sell) when:
 6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average.
 7. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
 
+Before submitting the sell entry, the bot verifies that the account has enough free base-asset balance, such as BTC for `BTC/USDT`.
+
 #### **Buy-Back Exit Conditions**
 The bot will exit the bear position (buy back) through one of three mechanisms:
 
 1. **Trailing Stop** *(if enabled)*: After the price drops by `activation-pct` below sell price, the stop trails from the lowest price. Triggers when price rises by `trailing-pct` from the trough.
 2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price. Executes immediately.
 3. **Take Profit**: The price drops to the take-profit percentage AND RSI is rising (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
+
+Before submitting a buy-back order, the bot verifies that the account has enough free quote-asset balance for the estimated cost.
 
 ---
 

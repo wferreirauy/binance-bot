@@ -16,6 +16,8 @@ type SymbolFilters struct {
 	MinNotional float64
 	MinQty      float64
 	StepSize    float64
+	BaseAsset   string
+	QuoteAsset  string
 }
 
 type ManagedOrderResult struct {
@@ -39,7 +41,10 @@ func GetSymbolFilters(symbol string) (*SymbolFilters, error) {
 		if s.Symbol != symbol {
 			continue
 		}
-		sf := &SymbolFilters{}
+		sf := &SymbolFilters{
+			BaseAsset:  s.BaseAsset,
+			QuoteAsset: s.QuoteAsset,
+		}
 		for _, f := range s.Filters {
 			switch f.FilterType {
 			case "NOTIONAL":
@@ -58,6 +63,49 @@ func GetSymbolFilters(symbol string) (*SymbolFilters, error) {
 		return sf, nil
 	}
 	return nil, fmt.Errorf("symbol %s not found in exchange info", symbol)
+}
+
+func requiredBalance(side string, quantity, price float64, filters *SymbolFilters) (string, float64, error) {
+	if filters == nil {
+		return "", 0, fmt.Errorf("balance: missing symbol filters")
+	}
+	switch side {
+	case "BUY":
+		if filters.QuoteAsset == "" {
+			return "", 0, fmt.Errorf("balance: missing quote asset")
+		}
+		if price <= 0 {
+			return "", 0, fmt.Errorf("balance: buy price must be greater than 0")
+		}
+		return filters.QuoteAsset, quantity * price, nil
+	case "SELL":
+		if filters.BaseAsset == "" {
+			return "", 0, fmt.Errorf("balance: missing base asset")
+		}
+		return filters.BaseAsset, quantity, nil
+	default:
+		return "", 0, fmt.Errorf("balance: unsupported order side %q", side)
+	}
+}
+
+func EnsureSufficientBalance(symbol, side string, quantity, price float64) error {
+	filters, err := GetSymbolFilters(symbol)
+	if err != nil {
+		return err
+	}
+	asset, required, err := requiredBalance(side, quantity, price, filters)
+	if err != nil {
+		return err
+	}
+	free, err := GetBalance(asset)
+	if err != nil {
+		return err
+	}
+	if free+1e-12 < required {
+		return fmt.Errorf("balance: insufficient %s balance for %s %s order: need %.8f, available %.8f",
+			asset, symbol, side, required, free)
+	}
+	return nil
 }
 
 // AdjustQuantity ensures the order quantity meets MIN_NOTIONAL and LOT_SIZE filters.
@@ -111,6 +159,9 @@ func GetOrder(symbol string, id int64) (res *binance.GetOrderResponse, err error
 func NewOrder(symbol, side string, quantity, price float64) (interface{}, error) {
 
 	client := binance.NewClient(APIKey, SecretKey, BaseURL)
+	if err := EnsureSufficientBalance(symbol, side, quantity, price); err != nil {
+		return nil, err
+	}
 
 	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type("LIMIT").TimeInForce("GTC").Quantity(quantity).Price(price).Do(context.Background())
@@ -122,8 +173,23 @@ func NewOrder(symbol, side string, quantity, price float64) (interface{}, error)
 }
 
 func NewMarketOrder(symbol, side string, quantity float64) (interface{}, error) {
+	return NewMarketOrderWithPrice(symbol, side, quantity, 0)
+}
+
+func NewMarketOrderWithPrice(symbol, side string, quantity, estimatedPrice float64) (interface{}, error) {
 
 	client := binance.NewClient(APIKey, SecretKey, BaseURL)
+	price := estimatedPrice
+	if side == "BUY" && price <= 0 {
+		currentPrice, err := GetPrice(client, symbol)
+		if err != nil {
+			return nil, err
+		}
+		price = currentPrice
+	}
+	if err := EnsureSufficientBalance(symbol, side, quantity, price); err != nil {
+		return nil, err
+	}
 
 	newOrder, err := client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type("MARKET").Quantity(quantity).Do(context.Background())
