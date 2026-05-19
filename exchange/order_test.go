@@ -43,3 +43,23 @@ func TestRequiredBalanceRejectsBuyWithoutPrice(t *testing.T) {
 		t.Fatal("expected BUY without price to fail")
 	}
 }
+
+func TestOrderBalanceCheckSufficientAllowsTinyFloatDrift(t *testing.T) {
+	check := &OrderBalanceCheck{
+		Required:  10,
+		Available: 10 - 5e-13,
+	}
+	if !check.Sufficient() {
+		t.Fatal("expected tiny float drift to still be sufficient")
+	}
+}
+
+func TestOrderBalanceCheckSufficientRejectsShortBalance(t *testing.T) {
+	check := &OrderBalanceCheck{
+		Required:  10,
+		Available: 9.99,
+	}
+	if check.Sufficient() {
+		t.Fatal("expected short balance to be insufficient")
+	}
+}

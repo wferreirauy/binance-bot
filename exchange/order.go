@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -28,6 +29,26 @@ type ManagedOrderResult struct {
 	ExecutedQty        float64
 	CumulativeQuoteQty float64
 	PartialHandled     bool
+}
+
+var ErrInsufficientBalance = errors.New("insufficient balance")
+
+type OrderBalanceCheck struct {
+	Symbol    string
+	Side      string
+	Asset     string
+	Quantity  float64
+	Price     float64
+	Required  float64
+	Available float64
+}
+
+func (c *OrderBalanceCheck) Sufficient() bool {
+	return c.Available+1e-12 >= c.Required
+}
+
+func IsInsufficientBalance(err error) bool {
+	return errors.Is(err, ErrInsufficientBalance)
 }
 
 // GetSymbolFilters fetches MIN_NOTIONAL and LOT_SIZE filters from Binance exchange info.
@@ -88,22 +109,42 @@ func requiredBalance(side string, quantity, price float64, filters *SymbolFilter
 	}
 }
 
-func EnsureSufficientBalance(symbol, side string, quantity, price float64) error {
+func CheckOrderBalance(symbol, side string, quantity, price float64) (*OrderBalanceCheck, error) {
 	filters, err := GetSymbolFilters(symbol)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	return CheckOrderBalanceWithFilters(symbol, side, quantity, price, filters)
+}
+
+func CheckOrderBalanceWithFilters(symbol, side string, quantity, price float64, filters *SymbolFilters) (*OrderBalanceCheck, error) {
 	asset, required, err := requiredBalance(side, quantity, price, filters)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	free, err := GetBalance(asset)
 	if err != nil {
+		return nil, err
+	}
+	return &OrderBalanceCheck{
+		Symbol:    symbol,
+		Side:      side,
+		Asset:     asset,
+		Quantity:  quantity,
+		Price:     price,
+		Required:  required,
+		Available: free,
+	}, nil
+}
+
+func EnsureSufficientBalance(symbol, side string, quantity, price float64) error {
+	check, err := CheckOrderBalance(symbol, side, quantity, price)
+	if err != nil {
 		return err
 	}
-	if free+1e-12 < required {
-		return fmt.Errorf("balance: insufficient %s balance for %s %s order: need %.8f, available %.8f",
-			asset, symbol, side, required, free)
+	if !check.Sufficient() {
+		return fmt.Errorf("%w: insufficient %s balance for %s %s order: need %.8f, available %.8f",
+			ErrInsufficientBalance, check.Asset, symbol, side, check.Required, check.Available)
 	}
 	return nil
 }

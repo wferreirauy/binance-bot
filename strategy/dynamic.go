@@ -132,6 +132,39 @@ func DynamicTrade(
 	}
 }
 
+func dynamicEntryBalanceCheck(ticker string, isBull bool, qty, price, buyFactor, sellFactor float64, roundPrice, roundAmount uint) (*exchange.OrderBalanceCheck, error) {
+	side := "BUY"
+	entryPrice := indicator.RoundFloat(price*buyFactor, roundPrice)
+	if !isBull {
+		side = "SELL"
+		entryPrice = indicator.RoundFloat(price*sellFactor, roundPrice)
+	}
+	filters, err := exchange.GetSymbolFilters(ticker)
+	if err != nil {
+		return nil, err
+	}
+	adjQty, _ := exchange.AdjustQuantity(qty, entryPrice, filters, roundAmount)
+	return exchange.CheckOrderBalanceWithFilters(ticker, side, adjQty, entryPrice, filters)
+}
+
+func dynamicEntryBalanceAvailable(dash *tui.Dashboard, ticker string, isBull bool, qty, price, buyFactor, sellFactor float64, roundPrice, roundAmount uint) bool {
+	check, err := dynamicEntryBalanceCheck(ticker, isBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount)
+	if err != nil {
+		dash.LogError(fmt.Sprintf("Entry balance check failed: %v", err))
+		return false
+	}
+	if check.Sufficient() {
+		return true
+	}
+	mode := "BULL"
+	if !isBull {
+		mode = "BEAR"
+	}
+	dash.LogInfo(fmt.Sprintf("[yellow]%s entry skipped[-] — %s %s needs %.8f %s, available %.8f; waiting for a compatible tendency",
+		mode, check.Symbol, check.Side, check.Required, check.Asset, check.Available))
+	return false
+}
+
 func dynamicTradeLoop(
 	dash *tui.Dashboard,
 	client *binance_connector.Client,
@@ -149,7 +182,8 @@ func dynamicTradeLoop(
 	var consecutiveSL int
 	takeProfit = feeAdjustedTakeProfit(symbol, cfg, takeProfit, dash)
 
-	for range max_ops {
+operationLoop:
+	for operation <= int(max_ops) {
 		dash.SetOperation(operation)
 		qty = indicator.RoundFloat(qty, roundAmount)
 
@@ -159,12 +193,14 @@ func dynamicTradeLoop(
 		var isBull bool
 
 		for {
+			var latestPrice float64
 			// Fetch OHLCV so we can update Price & Indicators panels while waiting
 			ohlcv, ohlcvErr := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
 			if ohlcvErr != nil {
 				dash.LogError(fmt.Sprintf("OHLCV fetch: %v", ohlcvErr))
 			} else if len(ohlcv.Closes) >= 2 {
 				price := ohlcv.Closes[len(ohlcv.Closes)-1]
+				latestPrice = price
 				prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
 				dash.UpdatePrice(price, prevPrice, roundPrice)
 
@@ -211,6 +247,14 @@ func dynamicTradeLoop(
 				time.Sleep(refreshInterval)
 				continue
 			}
+			if latestPrice <= 0 {
+				latestPrice, err = exchange.GetPrice(client, ticker)
+				if err != nil {
+					dash.LogError(fmt.Sprintf("Entry balance price check: %v", err))
+					time.Sleep(refreshInterval)
+					continue
+				}
+			}
 
 			// When a strategy is forced, wait for tendency to match
 			if strategy == "bull" && tendency != "up" {
@@ -222,6 +266,16 @@ func dynamicTradeLoop(
 			if strategy == "bear" && tendency != "down" {
 				dash.SetTradeMode("BEAR (waiting)")
 				dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [red]DOWN[-] tendency to match BEAR strategy", tendency))
+				time.Sleep(refreshInterval)
+				continue
+			}
+			candidateBull := tendency == "up"
+			if !dynamicEntryBalanceAvailable(dash, ticker, candidateBull, qty, latestPrice, buyFactor, sellFactor, roundPrice, roundAmount) {
+				if candidateBull {
+					dash.SetTradeMode("BULL (waiting balance)")
+				} else {
+					dash.SetTradeMode("BEAR (waiting balance)")
+				}
 				time.Sleep(refreshInterval)
 				continue
 			}
@@ -270,7 +324,12 @@ func dynamicTradeLoop(
 				if strategy == "auto" {
 					// auto mode: switch to the new tendency
 					dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s during scanning — re-detecting[-]", tendency))
-					isBull = tendency == "up"
+					nextBull := tendency == "up"
+					if !dynamicEntryBalanceAvailable(dash, ticker, nextBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount) {
+						time.Sleep(refreshInterval)
+						continue operationLoop
+					}
+					isBull = nextBull
 					if isBull {
 						dash.SetTradeMode("BULL")
 						dash.SetPhase("SCANNING BUY")
@@ -281,7 +340,8 @@ func dynamicTradeLoop(
 				} else {
 					// forced strategy: tendency no longer matches, go back to waiting
 					dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s — no longer matches %s strategy, returning to wait[-]", tendency, strings.ToUpper(strategy)))
-					break
+					time.Sleep(refreshInterval)
+					continue operationLoop
 				}
 			}
 
@@ -555,10 +615,19 @@ func dynamicTradeLoop(
 			}
 
 			if shouldEnter {
+				if !dynamicEntryBalanceAvailable(dash, ticker, isBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount) {
+					time.Sleep(refreshInterval)
+					continue operationLoop
+				}
 				if isBull {
 					dash.SetPhase("BUYING")
 					buy, err := TradeBuy(symbol, qty, price, buyFactor, roundPrice)
 					if err != nil {
+						if exchange.IsInsufficientBalance(err) {
+							dash.LogError(fmt.Sprintf("BUY order skipped: %v", err))
+							time.Sleep(refreshInterval)
+							continue operationLoop
+						}
 						dash.LogError(fmt.Sprintf("BUY order failed: %v", err))
 						return
 					}
@@ -583,6 +652,11 @@ func dynamicTradeLoop(
 					dash.SetPhase("SELLING")
 					sell, err := TradeSell(symbol, qty, price, sellFactor, roundPrice)
 					if err != nil {
+						if exchange.IsInsufficientBalance(err) {
+							dash.LogError(fmt.Sprintf("SELL order skipped: %v", err))
+							time.Sleep(refreshInterval)
+							continue operationLoop
+						}
 						dash.LogError(fmt.Sprintf("SELL order failed: %v", err))
 						return
 					}

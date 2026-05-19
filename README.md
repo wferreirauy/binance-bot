@@ -5,7 +5,7 @@
 
 ## Features
 
-- **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode to wait for a matching tendency
+- **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode and waits when the account cannot fund the detected side
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
 - **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
@@ -233,7 +233,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.10.2
+     v0.10.3
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -339,7 +339,7 @@ fees:
   buffer-pct: 0.05
 ```
 
-The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Before any limit or market order is submitted, the bot queries Binance spot account balances and verifies that the required base or quote asset is available as free balance. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
+The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Before any limit or market order is submitted, the bot queries Binance spot account balances and verifies that the required base or quote asset is available as free balance. In `auto-trade`, this balance check also gates mode selection: a detected bull tendency requires enough quote asset to buy, and a detected bear tendency requires enough base asset to sell. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
 
 ### Indicators Configuration
 
@@ -598,8 +598,8 @@ The `auto-trade` command removes the need to manually choose between bull and be
    - `bear`: Forces sell-first operations — the bot waits until tendency is "down" before entering. Ideal when you hold the base asset and want to sell first.
 2. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA to EMA. If DEMA > EMA the tendency is "up" (bull); otherwise "down" (bear).
 3. **Waiting for Match**: When a strategy is forced (`bull` or `bear`), the bot continuously monitors tendency and only proceeds when it matches the required direction. The TUI shows the mode with "(waiting)" until tendency aligns.
-4. **Mode Selection**: Based on the detected/matched tendency, the bot switches to the appropriate strategy — bull (buy low, sell high) or bear (sell high, buy back low).
-5. **Live Re-detection**: During entry scanning in `auto` mode, if the tendency flips, the bot immediately adapts and switches to the opposite mode. In forced strategy mode, a tendency flip causes the bot to return to waiting.
+4. **Balance-Aware Mode Selection**: Based on the detected/matched tendency, the bot switches to the appropriate strategy only if the account can fund that entry. Bull mode requires enough free quote asset for the buy, such as USDT for `XRP/USDT`; bear mode requires enough free base asset for the sell, such as XRP for `XRP/USDT`.
+5. **Live Re-detection**: During entry scanning in `auto` mode, if the tendency flips, the bot adapts only when the account can fund the new side. If the detected side cannot be funded, the bot keeps monitoring instead of exiting. In forced strategy mode, a tendency flip causes the bot to return to waiting.
 6. **Entry & Exit**: Once a mode is selected, the exact same entry conditions (classic or scalp scoring) and exit mechanisms (trailing stop, stop-loss, take-profit, AI confirmation) apply as in the standalone `bull-trade` or `bear-trade` commands.
 7. **Per-Operation Adaptation**: After each completed operation (entry + exit), the bot re-detects tendency before the next one.
 
@@ -607,6 +607,7 @@ The `auto-trade` command removes the need to manually choose between bull and be
 
 The TUI header dynamically shows the current mode:
 - `BULL (waiting)` or `BEAR (waiting)` when a forced strategy is waiting for matching tendency
+- `BULL (waiting balance)` or `BEAR (waiting balance)` when tendency matches but the account lacks the free asset required for that entry
 - `AUTO MODE` in cyan at startup (when strategy is auto)
 - Switches to `BULL MODE` (green) or `BEAR MODE` (red) once tendency is detected/matched
 - Updates in real-time if tendency flips during scanning
