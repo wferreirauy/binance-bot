@@ -36,3 +36,18 @@ This includes:
 
 ## Release
 On every new changes on new branch, rewrite completely the file PR-description-draft.md, that will be used to create the PR with the new changes created. Create the file if does not exist.
+
+## Git Workflow
+
+For every change set, follow this workflow:
+
+1. **Create a new branch** off `main` with a descriptive name reflecting the change
+   (e.g. `feat/<short-desc>`, `fix/<short-desc>`, `docs/<short-desc>`,
+   `chore/<short-desc>`).
+2. **Stage** the relevant files (`git add <files>`).
+3. **Commit** using [Conventional Commits](https://www.conventionalcommits.org/)
+   and include the bumped semantic version in the message
+   (e.g. `feat(strategy): add RSI divergence detector (v0.13.0)`,
+   `fix(tui): prevent panel race on shutdown (v0.12.2)`,
+   `docs: add CONTRIBUTING.md (v0.12.1)`).
+4. **Push** the branch to the remote (`git push -u origin <branch>`).
