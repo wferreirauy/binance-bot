@@ -28,7 +28,6 @@ fees:
 
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)
-  direction: "up"
   htf-enabled: true      # block entries when 5m trend opposes direction
   htf-interval: "5m"    # higher-timeframe gate for scalp mode
 

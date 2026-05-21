@@ -13,20 +13,20 @@ import (
 
 // Dashboard manages the multi-panel terminal UI for the trading bot.
 type Dashboard struct {
-	app          *tview.Application
-	header       *tview.TextView
-	pricePanel   *tview.TextView
-	indPanel     *tview.TextView
-	paramsPanel  *tview.TextView
-	aiPanel      *tview.TextView
-	ordersPanel  *tview.TextView
+	app         *tview.Application
+	header      *tview.TextView
+	pricePanel  *tview.TextView
+	indPanel    *tview.TextView
+	paramsPanel *tview.TextView
+	aiPanel     *tview.TextView
+	ordersPanel *tview.TextView
 
-	mainLayout   *tview.Flex
+	mainLayout *tview.Flex
 
-	tradeMode    string
-	symbol       string
-	operation    int
-	phase        string // "SCANNING", "BUYING", "SELLING", etc.
+	tradeMode string
+	symbol    string
+	operation int
+	phase     string // "SCANNING", "BUYING", "SELLING", etc.
 
 	// Countdown state
 	mu            sync.Mutex
@@ -288,7 +288,7 @@ func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
 		b.WriteString(fmt.Sprintf("  Refresh: [white]%ds[-]\n\n", c.RefreshInterval))
 
 		b.WriteString("[yellow::b]Tendency[-]\n")
-		b.WriteString(fmt.Sprintf("  Direction: [white]%s[-]  Interval: [white]%s[-]\n", c.Tendency.Direction, c.Tendency.Interval))
+		b.WriteString(fmt.Sprintf("  Interval: [white]%s[-]\n", c.Tendency.Interval))
 		b.WriteString(fmt.Sprintf("  HTF Enabled: [white]%v[-]  HTF Interval: [white]%s[-]\n\n", c.Tendency.HTFEnabled, c.Tendency.HTFInterval))
 
 		b.WriteString("[yellow::b]Indicators[-]\n")
@@ -577,13 +577,13 @@ type AgentResult struct {
 
 // AIConsensusData holds the full AI consensus for display.
 type AIConsensusData struct {
-	FinalSignal   string
-	AvgConfidence float64
-	BuyScore      float64
-	SellScore     float64
-	HoldScore     float64
-	Agents        []AgentResult
-	FearGreed     int
+	FinalSignal    string
+	AvgConfidence  float64
+	BuyScore       float64
+	SellScore      float64
+	HoldScore      float64
+	Agents         []AgentResult
+	FearGreed      int
 	FearGreedLabel string
 }
 

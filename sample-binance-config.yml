@@ -23,8 +23,7 @@ fees:
 
 tendency:
   interval: "3m"
-  direction: "up"
-  htf-enabled: false     # higher-timeframe trend gate (blocks entry if HTF trend opposes direction)
+  htf-enabled: false     # higher-timeframe trend gate (blocks bull entry when HTF trend is down, bear entry when HTF trend is up)
   htf-interval: "15m"   # interval used for higher-timeframe tendency check
 indicators:
   rsi:

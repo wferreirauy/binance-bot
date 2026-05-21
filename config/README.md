@@ -82,14 +82,12 @@ Controls market direction detection and the higher-timeframe trend gate.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `interval` | string | - | Candlestick interval used to determine the current market tendency (e.g., `"3m"`, `"5m"`). |
-| `direction` | string | - | Expected market direction: `"up"` or `"down"`. Used by forced-strategy modes to wait for matching tendency. |
 | `htf-enabled` | bool | false | When `true`, enables the Higher-Timeframe (HTF) trend gate that blocks entries when the longer timeframe opposes the trade direction. |
 | `htf-interval` | string | - | The interval for the HTF tendency check (e.g., `"15m"`, `"1h"`). Should be higher than the trading `interval`. |
 
 ```yaml
 tendency:
   interval: "3m"
-  direction: "up"
   htf-enabled: false
   htf-interval: "15m"
 ```
@@ -337,7 +335,6 @@ refresh-interval: 10
 
 tendency:
   interval: "1m"
-  direction: "up"
   htf-enabled: true
   htf-interval: "5m"
 
@@ -425,7 +422,6 @@ refresh-interval: 30
 
 tendency:
   interval: "15m"
-  direction: "up"
   htf-enabled: true
   htf-interval: "1h"
 
@@ -503,7 +499,6 @@ refresh-interval: 60
 
 tendency:
   interval: "1h"
-  direction: "up"
   htf-enabled: true
   htf-interval: "4h"
 

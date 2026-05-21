@@ -47,9 +47,6 @@ func (c *Config) Validate() []error {
 	}
 
 	errs = appendInterval(errs, "tendency.interval", c.Tendency.Interval)
-	if c.Tendency.Direction != "up" && c.Tendency.Direction != "down" {
-		errs = append(errs, fmt.Errorf("tendency.direction must be either \"up\" or \"down\""))
-	}
 	if c.Tendency.HTFEnabled {
 		errs = appendInterval(errs, "tendency.htf-interval", c.Tendency.HTFInterval)
 	}

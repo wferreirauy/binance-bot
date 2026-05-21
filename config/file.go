@@ -27,7 +27,6 @@ type Config struct {
 	} `yaml:"fees"`
 	Tendency struct {
 		Interval    string `yaml:"interval"`
-		Direction   string `yaml:"direction"`
 		HTFEnabled  bool   `yaml:"htf-enabled"`  // enable higher-timeframe trend gate
 		HTFInterval string `yaml:"htf-interval"` // e.g. "5m", "15m" — blocks entry if HTF trend opposes trade direction
 	} `yaml:"tendency"`

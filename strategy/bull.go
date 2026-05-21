@@ -237,7 +237,7 @@ func bullTradeLoop(
 				htfTendency, htfErr := exchange.GetTendency(client, ticker, cfg.Tendency.HTFInterval, period)
 				if htfErr != nil {
 					dash.LogError(fmt.Sprintf("HTF Tendency: %v", htfErr))
-				} else if htfTendency != cfg.Tendency.Direction {
+				} else if htfTendency != "up" {
 					dash.LogInfo(fmt.Sprintf("[red]HTF GATE[-] %s trend is [red]%s[-] on %s — skipping BULL entry",
 						symbol, htfTendency, cfg.Tendency.HTFInterval))
 					time.Sleep(refreshInterval)
@@ -269,12 +269,12 @@ func bullTradeLoop(
 					Met:  macdOk,
 				})
 
-				tendOk := tendency == cfg.Tendency.Direction
+				tendOk := tendency == "up"
 				if tendOk {
 					score++
 				}
 				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("Tendency %s = %s", tendency, cfg.Tendency.Direction),
+					Name: fmt.Sprintf("Tendency %s = up", tendency),
 					Met:  tendOk,
 				})
 
@@ -318,7 +318,7 @@ func bullTradeLoop(
 				rsiOk := rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit)
 				macdCrossOk := macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 					macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1]
-				tendOk := tendency == cfg.Tendency.Direction
+				tendOk := tendency == "up"
 				bbOk := distanceToLower < distanceToUpper
 
 				shouldBuy = rsiOk && macdCrossOk && tendOk && bbOk &&
@@ -328,7 +328,7 @@ func bullTradeLoop(
 					conditions := []entryCondition{
 						{Name: fmt.Sprintf("RSI %.1f < %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit), Met: rsiOk},
 						{Name: fmt.Sprintf("MACD bullish crossover (%.6f > %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]), Met: macdCrossOk},
-						{Name: fmt.Sprintf("Tendency %s = %s", tendency, cfg.Tendency.Direction), Met: tendOk},
+						{Name: fmt.Sprintf("Tendency %s = up", tendency), Met: tendOk},
 						{Name: fmt.Sprintf("Closer to lower BB (lower=%.4f, upper=%.4f)", distanceToLower, distanceToUpper), Met: bbOk},
 						{Name: fmt.Sprintf("ADX strong (%.1f > %d)", adxVal, cfg.Indicators.Adx.Threshold), Met: adxStrong},
 						{Name: fmt.Sprintf("Volume confirmed (%.0f > avg %.0f)", currentVolume, avgVolume), Met: volumeConfirmed},

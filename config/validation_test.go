@@ -26,7 +26,6 @@ func TestValidateReportsMultipleIssues(t *testing.T) {
 	}
 
 	cfg.HistoricalPrices.Interval = "2m"
-	cfg.Tendency.Direction = "sideways"
 	cfg.Indicators.Rsi.LowerLimit = 80
 	cfg.Indicators.Macd.FastLength = 26
 	cfg.Indicators.Macd.SlowLength = 12
@@ -39,7 +38,6 @@ func TestValidateReportsMultipleIssues(t *testing.T) {
 
 	want := []string{
 		"historical-prices.interval must be a valid Binance interval",
-		"tendency.direction must be either \"up\" or \"down\"",
 		"indicators.rsi limits must satisfy lower-limit < middle-limit < upper-limit",
 		"indicators.macd.fast-length must be less than slow-length",
 		"ai.min-confidence must be between 0 and 1",

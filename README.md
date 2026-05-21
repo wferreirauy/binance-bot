@@ -350,7 +350,6 @@ historical-prices:
 
 tendency:
   interval: "3m"        # interval for tendency calculation
-  direction: "up"       # expected direction for bull-trade
 
 indicators:
   rsi:
@@ -410,7 +409,7 @@ scalp-mode:
 |---|--------|-------------------|
 | 1 | RSI | Below upper limit |
 | 2 | MACD | MACD line above signal line |
-| 3 | Tendency | Matches configured direction |
+| 3 | Tendency | DEMA above EMA ("up") |
 | 4 | Bollinger | DEMA closer to lower band than upper band |
 | 5 | ADX | Above configured threshold |
 | 6 | Volume | Current volume above its moving average |
@@ -536,7 +535,7 @@ In **classic mode**, the bot places a buy order when **all** of the following co
 
 1. **RSI**: Value is below the configured `upper-limit` (default 70), indicating the market is not overbought.
 2. **MACD Crossover**: The MACD line crosses above the Signal line (classic) or is above the Signal line (scalp), suggesting upward momentum.
-3. **Tendency Confirmation**: The trend direction matches the configured direction (DEMA above EMA = "up").
+3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
 6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average, avoiding false breakouts.
@@ -612,7 +611,7 @@ The TUI header dynamically shows the current mode:
 - Switches to `BULL MODE` (green) or `BEAR MODE` (red) once tendency is detected/matched
 - Updates in real-time if tendency flips during scanning
 
-> **Tip**: The `auto-trade` command uses the same config file and flags as `bull-trade` / `bear-trade`. The `tendency.direction` config field is ignored — the bot determines direction automatically.
+> **Tip**: The `auto-trade` command uses the same config file and flags as `bull-trade` / `bear-trade`. The bot determines direction automatically from the live tendency.
 
 ---
 
