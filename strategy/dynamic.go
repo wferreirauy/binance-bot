@@ -241,7 +241,8 @@ operationLoop:
 			}
 
 			var err error
-			tendency, err = exchange.GetTendency(client, ticker, cfg.Tendency.Interval, period)
+			tp := cfg.TradingTendencyParams()
+			tendency, err = exchange.GetTendencyParams(client, ticker, tp.Interval, tp.Frames, tp.FastLength, tp.SlowLength, tp.ConfirmBars)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("Tendency detection: %v", err))
 				time.Sleep(refreshInterval)
@@ -312,7 +313,8 @@ operationLoop:
 			dash.UpdatePrice(price, prevPrice, roundPrice)
 
 			// re-check tendency during scanning
-			tendency, err = exchange.GetTendency(client, ticker, cfg.Tendency.Interval, period)
+			tp := cfg.TradingTendencyParams()
+			tendency, err = exchange.GetTendencyParams(client, ticker, tp.Interval, tp.Frames, tp.FastLength, tp.SlowLength, tp.ConfirmBars)
 			if err != nil {
 				dash.LogError(fmt.Sprintf("Tendency: %v", err))
 				time.Sleep(refreshInterval)
@@ -440,7 +442,8 @@ operationLoop:
 
 			// Higher-timeframe trend gate
 			if cfg.Tendency.HTFEnabled && cfg.Tendency.HTFInterval != "" {
-				htfTendency, htfErr := exchange.GetTendency(client, ticker, cfg.Tendency.HTFInterval, period)
+				htp := cfg.HTFTendencyParams()
+				htfTendency, htfErr := exchange.GetTendencyParams(client, ticker, htp.Interval, htp.Frames, htp.FastLength, htp.SlowLength, htp.ConfirmBars)
 				if htfErr != nil {
 					dash.LogError(fmt.Sprintf("HTF Tendency: %v", htfErr))
 				} else {

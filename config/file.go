@@ -26,9 +26,17 @@ type Config struct {
 		BufferPct       float64 `yaml:"buffer-pct"`
 	} `yaml:"fees"`
 	Tendency struct {
-		Interval    string `yaml:"interval"`
-		HTFEnabled  bool   `yaml:"htf-enabled"`  // enable higher-timeframe trend gate
-		HTFInterval string `yaml:"htf-interval"` // e.g. "5m", "15m" — blocks entry if HTF trend opposes trade direction
+		Interval       string `yaml:"interval"`
+		Period         int    `yaml:"period"`           // frames fetched for trading-interval tendency (0 → historical-prices.period)
+		FastLength     int    `yaml:"fast-length"`      // DEMA length for trading-interval tendency (0 → 9)
+		SlowLength     int    `yaml:"slow-length"`      // EMA length for trading-interval tendency (0 → period)
+		ConfirmBars    int    `yaml:"confirm-bars"`     // last N bars must agree (0/1 → single-bar, current behavior)
+		HTFEnabled     bool   `yaml:"htf-enabled"`      // enable higher-timeframe trend gate
+		HTFInterval    string `yaml:"htf-interval"`     // e.g. "5m", "15m" — blocks entry if HTF trend opposes trade direction
+		HTFPeriod      int    `yaml:"htf-period"`       // frames fetched for HTF tendency (0 → tendency.period)
+		HTFFastLength  int    `yaml:"htf-fast-length"`  // DEMA length for HTF tendency (0 → fast-length)
+		HTFSlowLength  int    `yaml:"htf-slow-length"`  // EMA length for HTF tendency (0 → slow-length)
+		HTFConfirmBars int    `yaml:"htf-confirm-bars"` // last N HTF bars must agree (0 → confirm-bars)
 	} `yaml:"tendency"`
 	Indicators struct {
 		Rsi struct {

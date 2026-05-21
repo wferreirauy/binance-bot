@@ -77,19 +77,52 @@ refresh-interval: 10
 
 ## Tendency
 
-Controls market direction detection and the higher-timeframe trend gate.
+Controls market direction detection and the higher-timeframe trend gate. Tendency is computed as DEMA(fast-length) vs EMA(slow-length) over the configured number of frames; the last `confirm-bars` bars must all agree on the same side of the crossover to confirm a direction (otherwise tendency is reported as `flat` and entries are blocked).
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `interval` | string | - | Candlestick interval used to determine the current market tendency (e.g., `"3m"`, `"5m"`). |
+| `period` | int | `historical-prices.period` | Number of frames fetched for trading-interval tendency. Decouples tendency analysis from the depth needed for MACD/Bollinger warm-up. |
+| `fast-length` | int | `9` | DEMA length used as the fast MA. |
+| `slow-length` | int | `period` | EMA length used as the slow MA. Must be greater than `fast-length`. |
+| `confirm-bars` | int | `1` | Require the last N bars to all agree on the same side of the crossover. Anti-flicker for scalping. |
 | `htf-enabled` | bool | false | When `true`, enables the Higher-Timeframe (HTF) trend gate that blocks entries when the longer timeframe opposes the trade direction. |
 | `htf-interval` | string | - | The interval for the HTF tendency check (e.g., `"15m"`, `"1h"`). Should be higher than the trading `interval`. |
+| `htf-period` | int | `tendency.period` | Frames fetched for HTF tendency. |
+| `htf-fast-length` | int | `tendency.fast-length` | HTF DEMA length. |
+| `htf-slow-length` | int | `tendency.slow-length` | HTF EMA length. |
+| `htf-confirm-bars` | int | `tendency.confirm-bars` | HTF bars that must agree to confirm direction. |
 
 ```yaml
 tendency:
   interval: "3m"
+  period: 0           # 0 → falls back to historical-prices.period
+  fast-length: 0      # 0 → falls back to 9
+  slow-length: 0      # 0 → falls back to period
+  confirm-bars: 0     # 0 → single-bar (current behavior)
   htf-enabled: false
   htf-interval: "15m"
+  htf-period: 0
+  htf-fast-length: 0
+  htf-slow-length: 0
+  htf-confirm-bars: 0
+```
+
+**Scalp-friendly example** — fast trading MAs, slightly slower HTF regime filter:
+
+```yaml
+tendency:
+  interval: "1m"
+  period: 60
+  fast-length: 5
+  slow-length: 20
+  confirm-bars: 2
+  htf-enabled: true
+  htf-interval: "5m"
+  htf-period: 80
+  htf-fast-length: 9
+  htf-slow-length: 30
+  htf-confirm-bars: 1
 ```
 
 ---

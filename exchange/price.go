@@ -109,24 +109,75 @@ func GetHistoricalPrices(client *binance_connector.Client, symbol, interval stri
 	return prices, nil
 }
 
-// GetTendency determines market tendency (up/down) using DEMA vs EMA
+// GetTendency determines market tendency (up/down) using DEMA(9) vs EMA(period).
+// Kept for backward compatibility; new callers should prefer GetTendencyParams.
 func GetTendency(client *binance_connector.Client, ticker, interval string, period int) (string, error) {
-	hp, err := GetHistoricalPrices(client, ticker, interval, period)
+	t, err := GetTendencyParams(client, ticker, interval, period, 9, period, 1)
 	if err != nil {
 		return "", err
 	}
-	var tendency string
-	dema := indicator.CalculateDEMA(hp, 9)
-	if ema, _ := indicator.CalculateEMA(hp, period); len(ema) > 0 {
-		if dema[len(dema)-1] > ema[len(ema)-1] {
-			tendency = "up"
-		} else if dema[len(dema)-1] < ema[len(ema)-1] {
-			tendency = "down"
-		}
-	} else {
-		tendency = "up"
+	// Preserve historic behavior: never return "flat" from this entry point.
+	if t == "flat" {
+		return "up", nil
 	}
-	return tendency, nil
+	return t, nil
+}
+
+// GetTendencyParams determines market tendency comparing a fast DEMA vs a slow EMA on
+// the requested interval. It fetches `frames` candles, computes DEMA(fastLen) and
+// EMA(slowLen), and requires the last `confirmBars` bars to all agree on the same side
+// of the crossover. Returns "up", "down", or "flat" when the signal is unconfirmed.
+func GetTendencyParams(client *binance_connector.Client, ticker, interval string, frames, fastLen, slowLen, confirmBars int) (string, error) {
+	if frames <= 0 {
+		return "", fmt.Errorf("GetTendencyParams: frames must be > 0")
+	}
+	if fastLen <= 0 {
+		fastLen = 9
+	}
+	if slowLen <= 0 {
+		slowLen = frames
+	}
+	if confirmBars <= 0 {
+		confirmBars = 1
+	}
+
+	hp, err := GetHistoricalPrices(client, ticker, interval, frames)
+	if err != nil {
+		return "", err
+	}
+
+	dema := indicator.CalculateDEMA(hp, fastLen)
+	ema, emaErr := indicator.CalculateEMA(hp, slowLen)
+	if emaErr != nil || len(ema) == 0 || len(dema) == 0 {
+		// Not enough data to evaluate — treat as unconfirmed rather than guessing.
+		return "flat", nil
+	}
+
+	n := len(dema)
+	if len(ema) < n {
+		n = len(ema)
+	}
+	if confirmBars > n {
+		confirmBars = n
+	}
+
+	up, down := true, true
+	for i := n - confirmBars; i < n; i++ {
+		if dema[i] <= ema[i] {
+			up = false
+		}
+		if dema[i] >= ema[i] {
+			down = false
+		}
+	}
+	switch {
+	case up:
+		return "up", nil
+	case down:
+		return "down", nil
+	default:
+		return "flat", nil
+	}
 }
 
 // OHLCV stores full candlestick data

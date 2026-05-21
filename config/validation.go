@@ -47,8 +47,38 @@ func (c *Config) Validate() []error {
 	}
 
 	errs = appendInterval(errs, "tendency.interval", c.Tendency.Interval)
+	if c.Tendency.Period < 0 {
+		errs = append(errs, fmt.Errorf("tendency.period must be greater than or equal to 0"))
+	}
+	if c.Tendency.FastLength < 0 {
+		errs = append(errs, fmt.Errorf("tendency.fast-length must be greater than or equal to 0"))
+	}
+	if c.Tendency.SlowLength < 0 {
+		errs = append(errs, fmt.Errorf("tendency.slow-length must be greater than or equal to 0"))
+	}
+	if c.Tendency.FastLength > 0 && c.Tendency.SlowLength > 0 && c.Tendency.FastLength >= c.Tendency.SlowLength {
+		errs = append(errs, fmt.Errorf("tendency.fast-length must be less than tendency.slow-length"))
+	}
+	if c.Tendency.ConfirmBars < 0 {
+		errs = append(errs, fmt.Errorf("tendency.confirm-bars must be greater than or equal to 0"))
+	}
 	if c.Tendency.HTFEnabled {
 		errs = appendInterval(errs, "tendency.htf-interval", c.Tendency.HTFInterval)
+		if c.Tendency.HTFPeriod < 0 {
+			errs = append(errs, fmt.Errorf("tendency.htf-period must be greater than or equal to 0"))
+		}
+		if c.Tendency.HTFFastLength < 0 {
+			errs = append(errs, fmt.Errorf("tendency.htf-fast-length must be greater than or equal to 0"))
+		}
+		if c.Tendency.HTFSlowLength < 0 {
+			errs = append(errs, fmt.Errorf("tendency.htf-slow-length must be greater than or equal to 0"))
+		}
+		if c.Tendency.HTFFastLength > 0 && c.Tendency.HTFSlowLength > 0 && c.Tendency.HTFFastLength >= c.Tendency.HTFSlowLength {
+			errs = append(errs, fmt.Errorf("tendency.htf-fast-length must be less than tendency.htf-slow-length"))
+		}
+		if c.Tendency.HTFConfirmBars < 0 {
+			errs = append(errs, fmt.Errorf("tendency.htf-confirm-bars must be greater than or equal to 0"))
+		}
 	}
 
 	errs = appendInterval(errs, "indicators.rsi.interval", c.Indicators.Rsi.Interval)

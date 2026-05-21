@@ -43,6 +43,7 @@ You can **download the precompiled binary** from the repository's release artifa
    - On Linux
    ```bash
    sudo mv binance-bot /usr/local/bin/
+   ```
 
 ## Usage
 
@@ -233,7 +234,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.10.3
+     v0.11.1
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -295,24 +296,9 @@ While the bot is running, the following keys are available inside the TUI:
 
 ## Configuration
 
-The bot is configured through a YAML file. See [sample-binance-config.yml](/sample-binance-config.yml) for a complete example.
+The bot is configured through a YAML file. See [sample-binance-config.yml](/sample-binance-config.yml) for a complete baseline and [sample-scalp-config.yml](/sample-scalp-config.yml) for a high-frequency profile.
 
-### Base URL Configuration
-
-You can override the Binance API base URL to use alternative endpoints such as the testnet:
-
-```yaml
-base-url: "https://testnet.binance.vision"
-```
-
-If omitted or empty, the default `https://api1.binance.com` (production) is used.
-
-| Environment | URL |
-|-------------|-----|
-| Production (default) | `https://api1.binance.com` |
-| Testnet | `https://testnet.binance.vision` |
-
-### Config Validation
+### Validation
 
 Run `validate-config` before trading to catch malformed or risky configuration values:
 
@@ -320,13 +306,34 @@ Run `validate-config` before trading to catch malformed or risky configuration v
 binance-bot -f binance-config.yml validate-config
 ```
 
-The command checks fields such as Binance candle intervals, RSI limit ordering, MACD length ordering, confidence ranges, positive refresh and polling intervals, and top-gainers settings. It reports all validation failures at once and does not call Binance or any AI provider.
+The command validates every current config section in one pass, including Binance candle intervals, positive periods and polling cadences, RSI limit ordering, MACD length ordering, confidence ranges, top-gainers filters, rotation settings, backtest assumptions, and the API bind address. Valid configs print `Config OK: <file>`.
 
-### Persistence, Fees, and Orders
+Valid Binance intervals are: `1s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `6h`, `8h`, `12h`, `1d`, `3d`, `1w`, and `1M`.
+
+### Core Settings
 
 ```yaml
+base-url: "https://api1.binance.com"
 data-dir: ".binance-bot"
 
+historical-prices:
+  period: 100
+  interval: "1m"
+
+refresh-interval: 10
+```
+
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `base-url` | string | `https://api1.binance.com` | Binance API base URL. Leave empty to use the built-in production endpoint; use `https://testnet.binance.vision` for testnet. |
+| `data-dir` | string | `.binance-bot` | Directory used for persisted trade history, scout history, value records, and rotation state. |
+| `historical-prices.period` | int | `100` | Number of candles fetched for indicators and backtests. |
+| `historical-prices.interval` | string | `1m` | Candle interval used for the main OHLCV fetch. |
+| `refresh-interval` | int | `10` | Seconds between live price polls and indicator recalculation. |
+
+### Orders And Fees
+
+```yaml
 order-management:
   buy-timeout-minutes: 20
   sell-timeout-minutes: 20
@@ -339,25 +346,33 @@ fees:
   buffer-pct: 0.05
 ```
 
-The bot writes trade/scout history to `data-dir`. Managed order timeouts cancel stale limit orders; `partial-fill-action: "reverse"` attempts a market order in the opposite direction for partial timeout fills. Before any limit or market order is submitted, the bot queries Binance spot account balances and verifies that the required base or quote asset is available as free balance. In `auto-trade`, this balance check also gates mode selection: a detected bull tendency requires enough quote asset to buy, and a detected bear tendency requires enough base asset to sell. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `order-management.buy-timeout-minutes` | int | `20` | Minutes before an unfilled buy limit order is cancelled; `0` disables the timeout. |
+| `order-management.sell-timeout-minutes` | int | `20` | Minutes before an unfilled sell limit order is cancelled; `0` disables the timeout. |
+| `order-management.partial-fill-action` | string | `keep` | Partial timeout behavior: `keep` leaves the filled portion in place, `reverse` attempts a market order to unwind it. |
+| `order-management.poll-interval-secs` | int | `5` | Seconds between order status polls. |
+| `fees.enabled` | bool | `true` | Enables fee-aware take-profit decisions. |
+| `fees.default-taker-pct` | float | `0.1` | Fallback taker fee percent when live fee lookup is unavailable. |
+| `fees.buffer-pct` | float | `0.05` | Extra safety buffer subtracted from take-profit decisions. |
 
-### Indicators Configuration
+Before submitting any order, the bot checks Binance spot free balances for the required base or quote asset. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
+
+### Tendency And Indicators
 
 ```yaml
-historical-prices:
-  period: 100           # number of candlesticks to fetch
-  interval: "1m"        # candlestick interval (1m, 3m, 5m, 15m, 1h, etc.)
-
 tendency:
-  interval: "3m"        # interval for tendency calculation
+  interval: "3m"
+  htf-enabled: false
+  htf-interval: "15m"
 
 indicators:
   rsi:
     interval: "5m"
     length: 14
-    upper-limit: 70     # overbought threshold
+    upper-limit: 70
     middle-limit: 50
-    lower-limit: 30     # oversold threshold
+    lower-limit: 30
   dema:
     length: 9
   macd:
@@ -368,104 +383,92 @@ indicators:
     length: 20
     multiplier: 2.0
   atr:
-    period: 14          # Average True Range for volatility
+    period: 14
   adx:
     period: 14
-    threshold: 25       # minimum ADX value to confirm trend strength
+    threshold: 25
   volume:
-    ma-period: 20       # volume moving average period
+    ma-period: 20
 ```
 
-### Trailing Stop Configuration
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `tendency.interval` | string | `3m` | Candle interval used to determine bull or bear tendency. |
+| `tendency.period` | int | `0` | Frames fetched for trading-interval tendency. `0` falls back to `historical-prices.period`. Letting you decouple tendency depth from MACD/Bollinger warm-up depth. |
+| `tendency.fast-length` | int | `0` | DEMA length for tendency fast MA. `0` → `9` (legacy default). |
+| `tendency.slow-length` | int | `0` | EMA length for tendency slow MA. `0` → `tendency.period`. Must be greater than `fast-length`. |
+| `tendency.confirm-bars` | int | `0` | Require last N bars to agree on the crossover. `0/1` keeps single-bar behavior; raise for anti-flicker on scalping. |
+| `tendency.htf-enabled` | bool | `false` | Enables the higher-timeframe trend gate. |
+| `tendency.htf-interval` | string | `15m` | Higher-timeframe interval used when `htf-enabled` is true. |
+| `tendency.htf-period` | int | `0` | Frames fetched for HTF tendency. `0` → `tendency.period`. |
+| `tendency.htf-fast-length` | int | `0` | HTF DEMA length. `0` → `tendency.fast-length`. |
+| `tendency.htf-slow-length` | int | `0` | HTF EMA length. `0` → `tendency.slow-length`. |
+| `tendency.htf-confirm-bars` | int | `0` | HTF bars that must agree to confirm direction. `0` → `tendency.confirm-bars`. |
+| `indicators.rsi.interval` | string | `5m` | Candle interval used for RSI data. |
+| `indicators.rsi.length` | int | `14` | RSI lookback length. |
+| `indicators.rsi.upper-limit` | int | `70` | Overbought threshold; must be above `middle-limit`. |
+| `indicators.rsi.middle-limit` | int | `50` | Neutral RSI threshold. |
+| `indicators.rsi.lower-limit` | int | `30` | Oversold threshold; must be below `middle-limit`. |
+| `indicators.dema.length` | int | `9` | DEMA lookback length for trend/proximity checks. |
+| `indicators.macd.fast-length` | int | `12` | Fast MACD EMA length; must be less than `slow-length`. |
+| `indicators.macd.slow-length` | int | `26` | Slow MACD EMA length. |
+| `indicators.macd.signal-length` | int | `9` | MACD signal EMA length. |
+| `indicators.bollinger-bands.length` | int | `20` | Bollinger moving average length. |
+| `indicators.bollinger-bands.multiplier` | float | `2.0` | Standard deviation multiplier for band width. |
+| `indicators.atr.period` | int | `14` | ATR volatility lookback used by dynamic stop-loss logic. |
+| `indicators.adx.period` | int | `14` | ADX trend-strength lookback. |
+| `indicators.adx.threshold` | int | `25` | Minimum ADX value for trend confirmation. |
+| `indicators.volume.ma-period` | int | `20` | Volume moving-average period for entry confirmation. |
 
-The trailing stop-loss dynamically adjusts to lock in profits as the price moves favorably:
+### Trailing Stop
 
 ```yaml
 trailing-stop:
   enabled: true
-  activation-pct: 1.5  # activate after price moves 1.5% in your favor
-  trailing-pct: 1.0    # trail by 1.0% from the peak/trough
+  activation-pct: 1.5
+  trailing-pct: 1.0
 ```
 
-- For **bull trades**: once the price rises by `activation-pct` above buy price, the stop tracks from the highest price and triggers if the price drops `trailing-pct` from that peak.
-- For **bear trades**: once the price drops by `activation-pct` below sell price, the stop tracks from the lowest price and triggers if the price rises `trailing-pct` from that trough.
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `trailing-stop.enabled` | bool | `true` | Enables dynamic trailing exits. |
+| `trailing-stop.activation-pct` | float | `1.5` | Favorable move required before trailing begins. |
+| `trailing-stop.trailing-pct` | float | `1.0` | Distance from the peak/trough that triggers the exit. |
 
-### Scalp Mode Configuration
+For bull trades, the stop tracks from the highest price after activation. For bear trades, it tracks from the lowest price after activation.
 
-Scalp mode is optimized for **high-frequency micro-trading** on volatile tickers. Instead of requiring all 6 entry signals simultaneously, it scores each signal and enters when `min-score` are bullish.
+### Scalp Mode
+
+Scalp mode uses a score instead of requiring all six entry conditions at once. The six signals are RSI, MACD, tendency, Bollinger position, ADX strength, and volume confirmation.
 
 ```yaml
 scalp-mode:
-  enabled: true
-  min-score: 3           # minimum bullish signals out of 6 to trigger entry
-  post-buy-delay: 5      # seconds to wait after fill before exit monitoring
-  inter-op-delay: 10     # seconds to wait between completed operations
-  require-rsi-exit: false # require RSI momentum confirmation before take-profit
+  enabled: false
+  min-score: 3
+  post-buy-delay: 30
+  inter-op-delay: 60
+  require-rsi-exit: true
+  sl-cooldown: false
+  max-consecutive-sl: 2
+  cooldown-base-secs: 60
+  atr-stop-loss: false
+  atr-multiplier: 1.5
 ```
 
-**Scoring signals (6 total):**
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `scalp-mode.enabled` | bool | `false` | Enables score-based scalp entries. |
+| `scalp-mode.min-score` | int | `3` | Required matching signals out of 6; valid range is 1-6 when enabled. |
+| `scalp-mode.post-buy-delay` | int | `30` | Seconds to wait after fill before exit monitoring. |
+| `scalp-mode.inter-op-delay` | int | `60` | Seconds to wait between completed operations. |
+| `scalp-mode.require-rsi-exit` | bool | `true` | Requires RSI momentum confirmation for take-profit exits when true. |
+| `scalp-mode.sl-cooldown` | bool | `false` | Enables exponential backoff after consecutive stop-losses. |
+| `scalp-mode.max-consecutive-sl` | int | `2` | Consecutive stop-loss count before cooldown starts. |
+| `scalp-mode.cooldown-base-secs` | int | `60` | Base cooldown seconds; doubles after additional consecutive stop-losses. |
+| `scalp-mode.atr-stop-loss` | bool | `false` | Uses ATR as a dynamic stop-loss floor. |
+| `scalp-mode.atr-multiplier` | float | `1.5` | Dynamic floor multiplier: `max(configured SL, atr-multiplier * ATR%)`. |
 
-| # | Signal | Bullish condition |
-|---|--------|-------------------|
-| 1 | RSI | Below upper limit |
-| 2 | MACD | MACD line above signal line |
-| 3 | Tendency | DEMA above EMA ("up") |
-| 4 | Bollinger | DEMA closer to lower band than upper band |
-| 5 | ADX | Above configured threshold |
-| 6 | Volume | Current volume above its moving average |
-
-With `min-score: 3` the bot enters if any 3 of 6 signals are bullish. Raise to `4` or `5` for more selective, lower-frequency entries.
-
-> See [sample-scalp-config.yml](/sample-scalp-config.yml) for a complete high-frequency configuration tuned for 1-minute candles.
-
-**Recommended stop-loss / take-profit for scalping (after 0.2% round-trip fees):**
-
-| Scenario | `--sl` | `--tp` | Net gain/loss |
-|----------|--------|--------|---------------|
-| Ultra-tight | `0.4` | `0.7` | +0.5% / -0.4% |
-| Balanced ✓ | `0.6` | `1.0` | +0.8% / -0.6% |
-| Conservative | `1.0` | `1.8` | +1.6% / -1.0% |
-
-### Top Gainers Configuration
-
-```yaml
-top-gainers:
-  quote-asset: "USDT"      # filter pairs ending with this asset
-  limit: 20                # number of top gainers to display
-  poll-interval: 60        # seconds between each refresh
-  min-volume: 1000000      # minimum 24h quote volume to include
-  exclude-symbols:         # symbols to always exclude
-    - "USDCUSDT"
-```
-
-### Rotation, Backtest, and API Configuration
-
-```yaml
-rotation:
-  bridge-asset: "USDT"
-  current-asset: "BTC"
-  supported-assets: ["BTC", "ETH", "SOL", "XRP", "DOGE"]
-  scout-multiplier: 5
-  scout-margin-pct: 0.8
-  use-margin: false
-  scout-sleep-seconds: 5
-  dry-run: true
-  max-jumps: 0
-  min-notional-buffer: 1.01
-
-backtest:
-  initial-balance: 1000
-  fee-pct: 0.1
-
-api:
-  address: "127.0.0.1:8080"
-```
-
-Rotation mode persists its current asset in `data-dir/current_asset.json`. Backtests use recent Binance candles and append simulated trade records. The API server exposes persisted JSONL history from the configured address.
-
-### AI Configuration
-
-The AI multi-agent system is optional. When enabled, it queries multiple LLM providers concurrently with technical indicators and market sentiment data to produce a consensus trading signal.
+### AI
 
 ```yaml
 ai:
@@ -477,21 +480,91 @@ ai:
       model: "deepseek-chat"
     claude:
       model: "claude-3-5-haiku-20241022"
-  min-confidence: 0.5   # minimum consensus confidence to act (0.0 - 1.0)
+  min-confidence: 0.5
 ```
 
-**How it works:**
-1. Each configured provider receives a structured prompt with all technical indicators plus real-time sentiment data.
-2. Providers are queried **concurrently** for speed.
-3. Each agent returns a signal (`BUY`, `SELL`, or `HOLD`), a confidence score (0.0-1.0), and reasoning.
-4. A **weighted consensus** algorithm aggregates all votes to produce a final decision.
-5. The AI must approve (or at least not contradict) technical signals before trades are executed.
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `ai.enabled` | bool | `true` | Enables AI-gated entries and AI-aware take-profit exits. |
+| `ai.providers.openai.model` | string | `gpt-4o-mini` | OpenAI model used when `OPENAI_API_KEY` is set. |
+| `ai.providers.deepseek.model` | string | `deepseek-chat` | DeepSeek model used when `DEEPSEEK_API_KEY` is set. |
+| `ai.providers.claude.model` | string | `claude-3-5-haiku-20241022` | Claude model used when `ANTHROPIC_API_KEY` is set. |
+| `ai.min-confidence` | float | `0.5` | Minimum consensus confidence from 0.0 to 1.0. |
 
-**Sentiment sources (free, no API key required):**
-- **CryptoCompare** — latest news headlines for the traded coin
-- **Alternative.me Fear & Greed Index** — overall crypto market mood
+Each available provider receives technical indicators plus sentiment data, returns `BUY`, `SELL`, or `HOLD`, and is folded into the weighted consensus. Set `ai.enabled: false` for lower-latency technical-only trading, especially in scalp profiles.
 
-> Set `ai.enabled: false` or omit all provider API keys to disable AI and run on technical indicators only. This is recommended for low-latency scalp configurations unless you intentionally want slower AI-gated entries.
+### Top Gainers
+
+```yaml
+top-gainers:
+  quote-asset: "USDT"
+  limit: 20
+  poll-interval: 60
+  min-volume: 1000000
+  exclude-symbols:
+    - "USDCUSDT"
+```
+
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `top-gainers.quote-asset` | string | `USDT` | Only include symbols ending in this quote asset. |
+| `top-gainers.limit` | int | `20` | Number of rows to show in the TUI. |
+| `top-gainers.poll-interval` | int | `60` | Seconds between 24h ticker refreshes. |
+| `top-gainers.min-volume` | float | `1000000` | Minimum 24h quote volume required for inclusion. |
+| `top-gainers.exclude-symbols` | list | `["USDCUSDT"]` | Symbols to omit from the monitor. |
+
+### Rotation
+
+```yaml
+rotation:
+  bridge-asset: "USDT"
+  current-asset: "BTC"
+  supported-assets:
+    - "BTC"
+    - "ETH"
+    - "SOL"
+  scout-multiplier: 5
+  scout-margin-pct: 0.8
+  use-margin: false
+  scout-sleep-seconds: 5
+  dry-run: true
+  max-jumps: 0
+  min-notional-buffer: 1.01
+```
+
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `rotation.bridge-asset` | string | `USDT` | Bridge asset used to compare and rotate between supported assets. |
+| `rotation.current-asset` | string | `BTC` | Initial current asset; persisted state overrides this after the first run. |
+| `rotation.supported-assets` | list | `BTC`, `ETH`, `SOL` | Asset basket scanned by rotation mode. |
+| `rotation.scout-multiplier` | float | `5` | Fee multiplier for relative-ratio opportunity thresholds when `use-margin` is false. |
+| `rotation.scout-margin-pct` | float | `0.8` | Margin percent required when `use-margin` is true. |
+| `rotation.use-margin` | bool | `false` | Switches scout opportunity calculation to margin-percent mode. |
+| `rotation.scout-sleep-seconds` | int | `5` | Seconds between scout loops. |
+| `rotation.dry-run` | bool | `true` | Records opportunities without placing live rotation orders. |
+| `rotation.max-jumps` | int | `0` | Maximum completed rotations; `0` means run until stopped. |
+| `rotation.min-notional-buffer` | float | `1.01` | Multiplier applied when satisfying Binance minimum notional filters. |
+
+Rotation mode persists its current asset in `data-dir/current_asset.json` and records scout comparisons in `data-dir/scouts.jsonl`.
+
+### Backtest And API
+
+```yaml
+backtest:
+  initial-balance: 1000
+  fee-pct: 0.1
+
+api:
+  address: "127.0.0.1:8080"
+```
+
+| Field | Type | Sample | Description |
+|-------|------|--------|-------------|
+| `backtest.initial-balance` | float | `1000` | Starting quote-asset balance for simulations. |
+| `backtest.fee-pct` | float | `0.1` | Fee assumption for backtest trades; if zero, the default taker fee is used. |
+| `api.address` | string | `127.0.0.1:8080` | Bind address for the local history API server. |
+
+Backtests use recent Binance candles and append simulated trade records. The API server exposes persisted JSONL history from the configured address.
 
 ### File Logging
 
@@ -595,7 +668,7 @@ The `auto-trade` command removes the need to manually choose between bull and be
    - `auto` (default): Detects tendency automatically and trades in whichever direction the market is trending.
    - `bull`: Forces buy-first operations — the bot waits until tendency is "up" before entering. Ideal when you only hold the quote asset (e.g., USDT).
    - `bear`: Forces sell-first operations — the bot waits until tendency is "down" before entering. Ideal when you hold the base asset and want to sell first.
-2. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA to EMA. If DEMA > EMA the tendency is "up" (bull); otherwise "down" (bear).
+2. **Tendency Detection**: At the start of each operation, the bot fetches historical prices on the configured `tendency.interval` and compares DEMA(`fast-length`) to EMA(`slow-length`). If DEMA > EMA for the last `confirm-bars` bars the tendency is "up" (bull); if DEMA < EMA it's "down" (bear); otherwise the tendency is unconfirmed and entries are blocked.
 3. **Waiting for Match**: When a strategy is forced (`bull` or `bear`), the bot continuously monitors tendency and only proceeds when it matches the required direction. The TUI shows the mode with "(waiting)" until tendency aligns.
 4. **Balance-Aware Mode Selection**: Based on the detected/matched tendency, the bot switches to the appropriate strategy only if the account can fund that entry. Bull mode requires enough free quote asset for the buy, such as USDT for `XRP/USDT`; bear mode requires enough free base asset for the sell, such as XRP for `XRP/USDT`.
 5. **Live Re-detection**: During entry scanning in `auto` mode, if the tendency flips, the bot adapts only when the account can fund the new side. If the detected side cannot be funded, the bot keeps monitoring instead of exiting. In forced strategy mode, a tendency flip causes the bot to return to waiting.

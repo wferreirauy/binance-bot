@@ -23,8 +23,16 @@ fees:
 
 tendency:
   interval: "3m"
+  # period: 0           # frames fetched for trading-interval tendency (0 → historical-prices.period)
+  # fast-length: 0      # DEMA length (0 → 9)
+  # slow-length: 0      # EMA length (0 → period)
+  # confirm-bars: 0     # require last N bars to agree (0/1 → single-bar, current behavior)
   htf-enabled: false     # higher-timeframe trend gate (blocks bull entry when HTF trend is down, bear entry when HTF trend is up)
   htf-interval: "15m"   # interval used for higher-timeframe tendency check
+  # htf-period: 0       # frames fetched for HTF tendency (0 → tendency.period)
+  # htf-fast-length: 0  # HTF DEMA length (0 → fast-length)
+  # htf-slow-length: 0  # HTF EMA length (0 → slow-length)
+  # htf-confirm-bars: 0 # HTF bars to confirm direction (0 → confirm-bars)
 indicators:
   rsi:
     interval: "5m"

@@ -28,8 +28,16 @@ fees:
 
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)
-  htf-enabled: true      # block entries when 5m trend opposes direction
+  period: 60            # ~1h of 1m candles for trading-interval tendency (decoupled from historical-prices.period)
+  fast-length: 5        # DEMA(5) — reactive fast MA
+  slow-length: 20       # EMA(20) — short slow MA for snappy crossovers
+  confirm-bars: 2       # require 2 consecutive bars agreeing to confirm direction (anti-flicker)
+  htf-enabled: true     # block entries when 5m trend opposes direction
   htf-interval: "5m"    # higher-timeframe gate for scalp mode
+  htf-period: 80        # ~6.5h of 5m candles
+  htf-fast-length: 9    # HTF DEMA(9)
+  htf-slow-length: 30   # HTF EMA(30) — regime filter, still reactive vs old EMA(period)
+  htf-confirm-bars: 1   # HTF gate flips fast on a single confirmed bar
 
 indicators:
   rsi:
