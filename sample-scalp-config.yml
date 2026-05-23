@@ -47,12 +47,14 @@ indicators:
     upper-limit: 65     # more permissive entry threshold (was 70)
     middle-limit: 50
     lower-limit: 35     # wider entry zone (was 30)
+    smooth-length: 3    # 3-bar SMA smoothing on RSI to reduce flicker on 1m candles
   dema:
     length: 5           # faster DEMA (was 9)
   macd:
     fast-length: 6      # faster MACD (was 12)
     slow-length: 13     # (was 26)
     signal-length: 5    # (was 9)
+    consecutive-bars: 2 # require 2 consecutive bars of histogram direction before MACD signal counts
   bollinger-bands:
     length: 10          # tighter bands = more entry signals (was 20)
     multiplier: 1.5     # narrower bands (was 2.0)
@@ -69,18 +71,38 @@ trailing-stop:
   activation-pct: 0.5   # activate trail earlier (was 1.5%)
   trailing-pct: 0.3     # tight trail from peak (was 1.0%)
 
-# Scalp mode: relaxed entry using scoring instead of all-conditions-must-match
+# Scalp mode: relaxed entry using scoring instead of all-conditions-must-match.
+# This sample turns on most v0.14.0 quality knobs — disable them individually
+# if you want to A/B test the impact of each.
 scalp-mode:
   enabled: true
-  min-score: 3           # need 3 out of 6 bullish signals to enter (RSI, MACD, tendency, Bollinger position, ADX, volume)
-  post-buy-delay: 5      # seconds after fill before monitoring exit (was hardcoded 30s)
-  inter-op-delay: 10     # seconds between completed ops (was hardcoded 60s)
-  require-rsi-exit: false # don't require RSI declining for take-profit
-  sl-cooldown: true      # enable exponential backoff after consecutive SL hits
-  max-consecutive-sl: 2  # start cooldown after 2 consecutive SLs
-  cooldown-base-secs: 60 # base cooldown: 60s → 120s → 240s (capped at 600s)
-  atr-stop-loss: true    # dynamically widen SL based on current volatility
-  atr-multiplier: 1.5    # SL = max(configured, 1.5 × ATR%)
+  min-score: 4              # weighted scoring is on → use a slightly higher bar
+  post-buy-delay: 5         # seconds after fill before monitoring exit
+  inter-op-delay: 10        # seconds between completed ops
+  require-rsi-exit: false   # don't require RSI declining for take-profit
+  sl-cooldown: true         # enable exponential backoff after consecutive SL hits
+  max-consecutive-sl: 2
+  cooldown-base-secs: 60    # base cooldown: 60s → 120s → 240s (capped at 600s)
+  atr-stop-loss: true       # dynamically widen SL based on current volatility
+  atr-multiplier: 1.5       # SL = max(configured, 1.5 × ATR%)
+  # --- v0.14.0 indicator overhaul ---
+  weighted-scoring: true        # MACD/RSI/BB ×2, divergence ×3
+  bb-squeeze-enabled: true      # award a bonus when BB width compresses (energy build-up)
+  bb-squeeze-ratio: 0.85
+  bb-squeeze-window: 20
+  volume-strong-multiplier: 1.5 # bonus when current volume > 1.5 × MA
+  divergence-enabled: true      # ×3 bonus on RSI divergence
+  divergence-lookback: 14
+  divergence-swing-pad: 2
+  fast-trend-gate: true         # accept tendency aligned OR MACD line on correct side of zero
+  tp-atr-multiplier: 1.2        # TP = max(--tp, 1.2 × ATR%) — scales with volatility
+  sl-atr-multiplier: 1.5        # SL = max(--sl, 1.5 × ATR%) — overrides atr-multiplier
+  time-stop-bars: 15            # close stale flat positions after 15 minutes (15 × 1m bars)
+  breakeven-atr-mult: 1.0       # pin SL to entry once peak P&L ≥ 1.0 × ATR%
+  min-atr-pct: 0.05             # skip entries below 0.05% ATR (dead market)
+  max-atr-pct: 3.0              # skip entries above 3.0% ATR (chaotic spike)
+  macd-peak-exit: true          # exit profitable trade when MACD histogram rolls over
+  recent-extreme-bars: 30       # block BULL entries within 0.1×ATR of last 30-bar high (BEAR mirror)
 
 # AI — disabled by default for scalp mode to avoid adding LLM latency to fast entry/exit paths.
 # Enable only if slower decisions are acceptable and you want explicit AI approval before entries.

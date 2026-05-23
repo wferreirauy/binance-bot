@@ -41,12 +41,14 @@ indicators:
     upper-limit: 70
     middle-limit: 50
     lower-limit: 30
+    # smooth-length: 0   # SMA smoothing applied to RSI (0/1 disables; e.g. 3 reduces flicker)
   dema:
     length: 9
   macd:
     fast-length: 12
     slow-length: 26
     signal-length: 9
+    # consecutive-bars: 0  # require N consecutive bars of histogram direction (0=last-bar only)
   bollinger-bands:
     length: 20
     multiplier: 2.0
@@ -62,12 +64,14 @@ trailing-stop:
   activation-pct: 1.5  # activate after 1.5% profit
   trailing-pct: 1.0    # trail by 1.0% from peak
 
-# Scalp mode: relaxed entry conditions for high-frequency micro-trading
-# When enabled, uses a scoring system (min-score out of 6 signals) instead of
-# requiring ALL entry conditions to be true simultaneously.
+# Scalp mode: relaxed entry conditions for high-frequency micro-trading.
+# When enabled, uses a scoring system (min-score) instead of requiring ALL
+# entry conditions to be true simultaneously. All v0.14.0 fields are opt-in:
+# defaults of 0/false preserve v0.13.x behavior (with two intentional scalp
+# default changes: pullback-in-trend RSI and Bollinger price-touch).
 scalp-mode:
   enabled: false
-  min-score: 3           # minimum bullish signals out of 6 to trigger entry
+  min-score: 3           # required score (unweighted out of 6; weighted higher when bonuses active)
   post-buy-delay: 30     # seconds to wait after fill before exit monitoring
   inter-op-delay: 60     # seconds to wait between completed operations
   require-rsi-exit: true # require RSI declining/rising for take-profit
@@ -76,6 +80,24 @@ scalp-mode:
   cooldown-base-secs: 60 # base cooldown seconds (doubles each consecutive SL)
   atr-stop-loss: false   # ATR-based dynamic stop-loss floor
   atr-multiplier: 1.5    # SL = max(configured, atrMultiplier × ATR%)
+  # --- v0.14.0 indicator overhaul (all opt-in; 0 / false = unchanged) ---
+  # weighted-scoring: false        # MACD/RSI/BB count ×2, divergence ×3
+  # bb-squeeze-enabled: false      # bonus when BB width compressed (energy build-up)
+  # bb-squeeze-ratio: 0.85         # current width ≤ ratio × avg width qualifies as squeeze
+  # bb-squeeze-window: 20          # lookback for BB-width average
+  # volume-strong-multiplier: 0.0  # >0 → bonus when current volume > mult × avg
+  # divergence-enabled: false      # bonus on bullish/bearish RSI divergence
+  # divergence-lookback: 14        # bars to scan for swing extrema
+  # divergence-swing-pad: 2        # padding around extrema
+  # fast-trend-gate: false         # trend signal: tendency aligns OR MACD on correct side of zero
+  # tp-atr-multiplier: 0.0         # >0 → TP = max(takeProfit%, mult × ATR%)
+  # sl-atr-multiplier: 0.0         # >0 → SL = max(stopLoss%, mult × ATR%) (overrides atr-multiplier when set)
+  # time-stop-bars: 0              # exit flat positions (P&L≥0, TP not reached) after N bars
+  # breakeven-atr-mult: 0.0        # pin SL to entry once peak P&L ≥ mult × ATR%
+  # min-atr-pct: 0.0               # regime filter: refuse entries below this ATR%
+  # max-atr-pct: 0.0               # regime filter: refuse entries above this ATR%
+  # macd-peak-exit: false          # exit in profit when MACD histogram rolls over (3-bar peak)
+  # recent-extreme-bars: 0         # block BULL near recent high / BEAR near recent low
 
 # AI multi-agent configuration
 # API keys are read from environment variables:
