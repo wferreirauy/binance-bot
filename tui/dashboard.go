@@ -297,20 +297,41 @@ func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
 		b.WriteString(" [gray]No configuration loaded[-]\n")
 	} else {
 		c := d.cfg
+		b.WriteString("[yellow::b]General[-]\n")
+		b.WriteString(fmt.Sprintf("  Base URL: [white]%s[-]\n", c.BaseURL))
+		b.WriteString(fmt.Sprintf("  Data Dir: [white]%s[-]\n", c.DataDir))
+		b.WriteString(fmt.Sprintf("  Refresh Interval: [white]%ds[-]\n\n", c.RefreshInterval))
+
 		b.WriteString("[yellow::b]Historical Prices[-]\n")
-		b.WriteString(fmt.Sprintf("  Period: [white]%d[-]  Interval: [white]%s[-]\n", c.HistoricalPrices.Period, c.HistoricalPrices.Interval))
-		b.WriteString(fmt.Sprintf("  Refresh: [white]%ds[-]\n\n", c.RefreshInterval))
+		b.WriteString(fmt.Sprintf("  Period: [white]%d[-]  Interval: [white]%s[-]\n\n", c.HistoricalPrices.Period, c.HistoricalPrices.Interval))
+
+		b.WriteString("[yellow::b]Order Management[-]\n")
+		b.WriteString(fmt.Sprintf("  Buy Timeout: [white]%dm[-]  Sell Timeout: [white]%dm[-]\n",
+			c.OrderManagement.BuyTimeoutMinutes, c.OrderManagement.SellTimeoutMinutes))
+		b.WriteString(fmt.Sprintf("  Partial-Fill Action: [white]%s[-]  Poll Interval: [white]%ds[-]\n\n",
+			c.OrderManagement.PartialFillAction, c.OrderManagement.PollIntervalSecs))
+
+		b.WriteString("[yellow::b]Fees[-]\n")
+		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Default Taker: [white]%.3f%%[-]\n",
+			c.Fees.Enabled, c.Fees.DefaultTakerPct))
+		b.WriteString(fmt.Sprintf("  Buffer: [white]%.3f%%[-]  Buy-Back Buffer: [white]%.3f%%[-]\n\n",
+			c.Fees.BufferPct, c.Fees.BuyBackBufferPct))
 
 		b.WriteString("[yellow::b]Tendency[-]\n")
-		b.WriteString(fmt.Sprintf("  Interval: [white]%s[-]\n", c.Tendency.Interval))
-		b.WriteString(fmt.Sprintf("  HTF Enabled: [white]%v[-]  HTF Interval: [white]%s[-]\n\n", c.Tendency.HTFEnabled, c.Tendency.HTFInterval))
+		b.WriteString(fmt.Sprintf("  Interval: [white]%s[-]  Period: [white]%d[-]\n", c.Tendency.Interval, c.Tendency.Period))
+		b.WriteString(fmt.Sprintf("  Fast Len: [white]%d[-]  Slow Len: [white]%d[-]  Confirm Bars: [white]%d[-]\n",
+			c.Tendency.FastLength, c.Tendency.SlowLength, c.Tendency.ConfirmBars))
+		b.WriteString(fmt.Sprintf("  HTF Enabled: [white]%v[-]  HTF Interval: [white]%s[-]  HTF Period: [white]%d[-]\n",
+			c.Tendency.HTFEnabled, c.Tendency.HTFInterval, c.Tendency.HTFPeriod))
+		b.WriteString(fmt.Sprintf("  HTF Fast: [white]%d[-]  HTF Slow: [white]%d[-]  HTF Confirm: [white]%d[-]\n\n",
+			c.Tendency.HTFFastLength, c.Tendency.HTFSlowLength, c.Tendency.HTFConfirmBars))
 
 		b.WriteString("[yellow::b]Indicators[-]\n")
-		b.WriteString(fmt.Sprintf("  RSI: interval=[white]%s[-] len=[white]%d[-] upper=[white]%d[-] mid=[white]%d[-] lower=[white]%d[-]\n",
-			c.Indicators.Rsi.Interval, c.Indicators.Rsi.Length, c.Indicators.Rsi.UpperLimit, c.Indicators.Rsi.MiddleLimit, c.Indicators.Rsi.LowerLimit))
+		b.WriteString(fmt.Sprintf("  RSI: interval=[white]%s[-] len=[white]%d[-] upper=[white]%d[-] mid=[white]%d[-] lower=[white]%d[-] smooth=[white]%d[-]\n",
+			c.Indicators.Rsi.Interval, c.Indicators.Rsi.Length, c.Indicators.Rsi.UpperLimit, c.Indicators.Rsi.MiddleLimit, c.Indicators.Rsi.LowerLimit, c.Indicators.Rsi.SmoothLength))
 		b.WriteString(fmt.Sprintf("  DEMA: len=[white]%d[-]\n", c.Indicators.Dema.Length))
-		b.WriteString(fmt.Sprintf("  MACD: fast=[white]%d[-] slow=[white]%d[-] signal=[white]%d[-]\n",
-			c.Indicators.Macd.FastLength, c.Indicators.Macd.SlowLength, c.Indicators.Macd.SignalLength))
+		b.WriteString(fmt.Sprintf("  MACD: fast=[white]%d[-] slow=[white]%d[-] signal=[white]%d[-] consec-bars=[white]%d[-]\n",
+			c.Indicators.Macd.FastLength, c.Indicators.Macd.SlowLength, c.Indicators.Macd.SignalLength, c.Indicators.Macd.ConsecutiveBars))
 		b.WriteString(fmt.Sprintf("  Bollinger: len=[white]%d[-] mult=[white]%.1f[-]\n",
 			c.Indicators.BollingerBands.Length, c.Indicators.BollingerBands.Multiplier))
 		b.WriteString(fmt.Sprintf("  ATR: period=[white]%d[-]\n", c.Indicators.Atr.Period))
@@ -325,10 +346,25 @@ func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
 		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Min Score: [white]%d[-]\n", c.ScalpMode.Enabled, c.ScalpMode.MinScore))
 		b.WriteString(fmt.Sprintf("  Post-Buy Delay: [white]%ds[-]  Inter-Op Delay: [white]%ds[-]\n",
 			c.ScalpMode.PostBuyDelay, c.ScalpMode.InterOpDelay))
-		b.WriteString(fmt.Sprintf("  RSI Exit: [white]%v[-]  SL Cooldown: [white]%v[-]\n",
-			c.ScalpMode.RequireRSIExit, c.ScalpMode.SLCooldown))
-		b.WriteString(fmt.Sprintf("  ATR Stop-Loss: [white]%v[-]  ATR Mult: [white]%.1f[-]\n\n",
+		b.WriteString(fmt.Sprintf("  RSI Exit: [white]%v[-]  SL Cooldown: [white]%v[-]  Max Consec SL: [white]%d[-]  Cooldown Base: [white]%ds[-]\n",
+			c.ScalpMode.RequireRSIExit, c.ScalpMode.SLCooldown, c.ScalpMode.MaxConsecutiveSL, c.ScalpMode.CooldownBaseSecs))
+		b.WriteString(fmt.Sprintf("  ATR Stop-Loss: [white]%v[-]  ATR Mult: [white]%.2f[-]\n",
 			c.ScalpMode.ATRStopLoss, c.ScalpMode.ATRMultiplier))
+		b.WriteString("  [gray]-- v0.14.0 --[-]\n")
+		b.WriteString(fmt.Sprintf("  Weighted Scoring: [white]%v[-]  Fast Trend Gate: [white]%v[-]  MACD-Peak Exit: [white]%v[-]\n",
+			c.ScalpMode.WeightedScoring, c.ScalpMode.FastTrendGate, c.ScalpMode.MACDPeakExit))
+		b.WriteString(fmt.Sprintf("  BB Squeeze: enabled=[white]%v[-] ratio=[white]%.2f[-] window=[white]%d[-]\n",
+			c.ScalpMode.BBSqueezeEnabled, c.ScalpMode.BBSqueezeRatio, c.ScalpMode.BBSqueezeWindow))
+		b.WriteString(fmt.Sprintf("  Vol Strong Mult: [white]%.2f[-]\n", c.ScalpMode.VolumeStrongMultiplier))
+		b.WriteString(fmt.Sprintf("  Divergence: enabled=[white]%v[-] lookback=[white]%d[-] swing-pad=[white]%d[-]\n",
+			c.ScalpMode.DivergenceEnabled, c.ScalpMode.DivergenceLookback, c.ScalpMode.DivergenceSwingPad))
+		b.WriteString(fmt.Sprintf("  TP ATR Mult: [white]%.2f[-]  SL ATR Mult: [white]%.2f[-]\n",
+			c.ScalpMode.TPATRMultiplier, c.ScalpMode.SLATRMultiplier))
+		b.WriteString(fmt.Sprintf("  Time-Stop Bars: [white]%d[-]  Break-Even ATR Mult: [white]%.2f[-]\n",
+			c.ScalpMode.TimeStopBars, c.ScalpMode.BreakevenATRMult))
+		b.WriteString(fmt.Sprintf("  Regime ATR%%: min=[white]%.3f[-] max=[white]%.3f[-]\n",
+			c.ScalpMode.MinATRPct, c.ScalpMode.MaxATRPct))
+		b.WriteString(fmt.Sprintf("  Recent Extreme Bars: [white]%d[-]\n\n", c.ScalpMode.RecentExtremeBars))
 
 		b.WriteString("[yellow::b]AI Agents[-]\n")
 		b.WriteString(fmt.Sprintf("  Enabled: [white]%v[-]  Min Confidence: [white]%.0f%%[-]\n",
@@ -340,20 +376,46 @@ func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
 		}
 		b.WriteString("\n")
 
-		b.WriteString("[dimgray]Press [white::b]c[-][dimgray] or [white::b]Esc[-][dimgray] to close[-]")
+		b.WriteString("[yellow::b]Top Gainers[-]\n")
+		b.WriteString(fmt.Sprintf("  Quote: [white]%s[-]  Limit: [white]%d[-]  Poll: [white]%ds[-]  Min Vol: [white]%.0f[-]\n",
+			c.TopGainers.QuoteAsset, c.TopGainers.Limit, c.TopGainers.PollInterval, c.TopGainers.MinVolume))
+		if len(c.TopGainers.ExcludeSymbols) > 0 {
+			b.WriteString(fmt.Sprintf("  Exclude: [white]%s[-]\n", strings.Join(c.TopGainers.ExcludeSymbols, ", ")))
+		}
+		b.WriteString("\n")
+
+		b.WriteString("[yellow::b]Rotation[-]\n")
+		b.WriteString(fmt.Sprintf("  Bridge: [white]%s[-]  Current: [white]%s[-]\n",
+			c.Rotation.BridgeAsset, c.Rotation.CurrentAsset))
+		if len(c.Rotation.SupportedAssets) > 0 {
+			b.WriteString(fmt.Sprintf("  Supported: [white]%s[-]\n", strings.Join(c.Rotation.SupportedAssets, ", ")))
+		}
+		b.WriteString(fmt.Sprintf("  Scout Mult: [white]%.2f[-]  Scout Margin: [white]%.2f%%[-]  Use Margin: [white]%v[-]\n",
+			c.Rotation.ScoutMultiplier, c.Rotation.ScoutMarginPct, c.Rotation.UseMargin))
+		b.WriteString(fmt.Sprintf("  Scout Sleep: [white]%ds[-]  Dry Run: [white]%v[-]  Max Jumps: [white]%d[-]  Min Notional Buf: [white]%.3f[-]\n\n",
+			c.Rotation.ScoutSleepSeconds, c.Rotation.DryRun, c.Rotation.MaxJumps, c.Rotation.MinNotionalBuffer))
+
+		b.WriteString("[yellow::b]Backtest[-]\n")
+		b.WriteString(fmt.Sprintf("  Initial Balance: [white]%.2f[-]  Fee: [white]%.3f%%[-]\n\n",
+			c.Backtest.InitialBalance, c.Backtest.FeePct))
+
+		b.WriteString("[yellow::b]API[-]\n")
+		b.WriteString(fmt.Sprintf("  Address: [white]%s[-]\n\n", c.API.Address))
+
+		b.WriteString("[dimgray]Press [white::b]c[-][dimgray] or [white::b]Esc[-][dimgray] to close · scroll with arrows/PgUp/PgDn[-]")
 	}
 
 	cfgView.SetText(b.String())
 
-	// Center the config modal
+	// Center the config modal (taller to fit all sections; remains scrollable for small terminals)
 	modal := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(nil, 0, 1, false).
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(nil, 0, 1, false).
-				AddItem(cfgView, 65, 0, true).
+				AddItem(cfgView, 95, 0, true).
 				AddItem(nil, 0, 1, false),
-			28, 0, true).
+			50, 0, true).
 		AddItem(nil, 0, 1, false)
 
 	// Overlay modal on top of main layout
