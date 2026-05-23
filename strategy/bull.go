@@ -205,12 +205,20 @@ func bullTradeLoop(
 			}
 
 			// Update indicators panel
+			var atrVal float64
+			if cfg.Indicators.Atr.Period > 0 {
+				atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+				if len(atrSeries) > 0 {
+					atrVal = atrSeries[len(atrSeries)-1]
+				}
+			}
 			dash.UpdateIndicators(&tui.IndicatorData{
 				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 				MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
 				DEMA: currentDema, UpperBand: upperBand, LowerBand: lowerBand,
 				Tendency: tendency, ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
 				Volume: currentVolume, AvgVolume: avgVolume,
+				ATR: atrVal, Price: price,
 			})
 
 			// AI analysis
@@ -404,9 +412,17 @@ func bullTradeLoop(
 
 			// update indicators panel with sell-phase data
 			pnl := (price - buyPrice) / buyPrice * 100
+			var atrVal float64
+			if cfg.Indicators.Atr.Period > 0 {
+				atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+				if len(atrSeries) > 0 {
+					atrVal = atrSeries[len(atrSeries)-1]
+				}
+			}
 			dash.UpdateIndicators(&tui.IndicatorData{
 				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 				Tendency: fmt.Sprintf("P&L: %+.2f%%", pnl),
+				ATR:      atrVal, Price: price,
 			})
 
 			if price > highestPrice {

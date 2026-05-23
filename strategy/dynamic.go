@@ -239,12 +239,20 @@ operationLoop:
 							avgVolume = volumeMA[len(volumeMA)-1]
 						}
 					}
+					var atrVal float64
+					if cfg.Indicators.Atr.Period > 0 {
+						atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+						if len(atrSeries) > 0 {
+							atrVal = atrSeries[len(atrSeries)-1]
+						}
+					}
 					dash.UpdateIndicators(&tui.IndicatorData{
 						RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 						MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
 						DEMA: dema[len(dema)-1], UpperBand: bb.UpperBand[len(bb.UpperBand)-1], LowerBand: bb.LowerBand[len(bb.LowerBand)-1],
 						Tendency: "(detecting)", ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
 						Volume: currentVolume, AvgVolume: avgVolume,
+						ATR: atrVal, Price: price,
 					})
 
 				}
@@ -422,12 +430,20 @@ operationLoop:
 			}
 
 			// Update indicators panel
+			var atrVal float64
+			if cfg.Indicators.Atr.Period > 0 {
+				atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+				if len(atrSeries) > 0 {
+					atrVal = atrSeries[len(atrSeries)-1]
+				}
+			}
 			dash.UpdateIndicators(&tui.IndicatorData{
 				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 				MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
 				DEMA: currentDema, UpperBand: upperBand, LowerBand: lowerBand,
 				Tendency: tendency, ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
 				Volume: currentVolume, AvgVolume: avgVolume,
+				ATR: atrVal, Price: price,
 			})
 
 			// AI analysis
@@ -741,9 +757,17 @@ operationLoop:
 				dash.UpdatePrice(price, prevPrice, roundPrice)
 
 				pnl := (price - entryPrice) / entryPrice * 100
+				var atrVal float64
+				if cfg.Indicators.Atr.Period > 0 {
+					atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+					if len(atrSeries) > 0 {
+						atrVal = atrSeries[len(atrSeries)-1]
+					}
+				}
 				dash.UpdateIndicators(&tui.IndicatorData{
 					RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 					Tendency: fmt.Sprintf("P&L: %+.2f%%", pnl),
+					ATR:      atrVal, Price: price,
 				})
 
 				if price > highestPrice {
@@ -900,9 +924,17 @@ operationLoop:
 				dash.UpdatePrice(price, prevPrice, roundPrice)
 
 				pnl := (entryPrice - price) / entryPrice * 100
+				var atrVal float64
+				if cfg.Indicators.Atr.Period > 0 {
+					atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
+					if len(atrSeries) > 0 {
+						atrVal = atrSeries[len(atrSeries)-1]
+					}
+				}
 				dash.UpdateIndicators(&tui.IndicatorData{
 					RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
 					Tendency: fmt.Sprintf("P&L: %+.2f%%", pnl),
+					ATR:      atrVal, Price: price,
 				})
 
 				if price < lowestPrice {

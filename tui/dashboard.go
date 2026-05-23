@@ -433,6 +433,8 @@ type IndicatorData struct {
 	ADXThreshold  int
 	Volume        float64
 	AvgVolume     float64
+	ATR           float64 // latest ATR in price units
+	Price         float64 // latest close, used to render ATR%
 }
 
 // SetRefreshInterval stores the polling interval and starts a 1-second
@@ -562,6 +564,15 @@ func (d *Dashboard) UpdateIndicators(ind *IndicatorData) {
 		b.WriteString(fmt.Sprintf(" [white::b]ADX:[:-]         [%s]%.1f[-]", adxColor, ind.ADX))
 		if ind.ADXThreshold > 0 {
 			b.WriteString(fmt.Sprintf(" [gray](threshold: %d)[-]", ind.ADXThreshold))
+		}
+		b.WriteString("\n")
+	}
+
+	// ATR (volatility)
+	if ind.ATR > 0 {
+		b.WriteString(fmt.Sprintf(" [white::b]ATR:[:-]         [aqua]%.6f[-]", ind.ATR))
+		if ind.Price > 0 {
+			b.WriteString(fmt.Sprintf(" [gray](%.3f%%)[-]", ind.ATR/ind.Price*100))
 		}
 		b.WriteString("\n")
 	}
