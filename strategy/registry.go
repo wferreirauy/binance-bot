@@ -121,7 +121,7 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	rsi := indicator.CalculateRSI(closes, cfg.Indicators.Rsi.Length)
 	macdLine, signalLine := indicator.CalculateMACD(closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
 	bb, err := indicator.CalculateBollingerBands(closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
-	if err != nil || len(dema) == 0 || len(rsi) == 0 || len(macdLine) == 0 || len(signalLine) == 0 || len(bb.LowerBand) == 0 {
+	if err != nil || len(dema) == 0 || len(rsi) == 0 || len(macdLine) < 2 || len(signalLine) < 2 || len(bb.LowerBand) == 0 {
 		return SignalHold
 	}
 	score := 0
@@ -131,7 +131,9 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit) {
 		score++
 	}
-	if macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {
+	hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
+	prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
+	if hist > 0 && hist > prevHist {
 		score++
 	}
 	if snapshot.Tendency == "up" {

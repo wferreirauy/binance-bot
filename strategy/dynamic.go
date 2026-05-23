@@ -495,12 +495,14 @@ operationLoop:
 						Met:  rsiOk,
 					})
 
-					macdOk := macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1]
+					hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
+					prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
+					macdOk := hist > 0 && hist > prevHist
 					if macdOk {
 						score++
 					}
 					conditions = append(conditions, entryCondition{
-						Name: fmt.Sprintf("MACD above signal (%.6f > %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]),
+						Name: fmt.Sprintf("MACD histogram rising (%.6f > %.6f)", hist, prevHist),
 						Met:  macdOk,
 					})
 
@@ -531,12 +533,14 @@ operationLoop:
 						Met:  rsiOk,
 					})
 
-					macdOk := macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1]
+					hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
+					prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
+					macdOk := hist < 0 && hist < prevHist
 					if macdOk {
 						score++
 					}
 					conditions = append(conditions, entryCondition{
-						Name: fmt.Sprintf("MACD below signal (%.6f < %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]),
+						Name: fmt.Sprintf("MACD histogram falling (%.6f < %.6f)", hist, prevHist),
 						Met:  macdOk,
 					})
 
