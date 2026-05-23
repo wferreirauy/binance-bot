@@ -274,7 +274,7 @@ func bearTradeLoop(
 
 				hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
 				prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
-				macdOk := hist < 0 && hist < prevHist
+				macdOk := hist < prevHist
 				if macdOk {
 					score++
 				}

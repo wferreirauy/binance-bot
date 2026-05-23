@@ -133,7 +133,7 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	}
 	hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
 	prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
-	if hist > 0 && hist > prevHist {
+	if hist > prevHist {
 		score++
 	}
 	if snapshot.Tendency == "up" {

@@ -609,7 +609,7 @@ The `bull-trade` command is designed to operate during **bull market trends**, l
 In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` out of 6 are bullish (see [Scalp Mode Configuration](#scalp-mode-configuration)).
 
 1. **RSI**: Value is below the configured `lower-limit` (default 30), indicating the market is oversold and ripe for a reversal upward.
-2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is positive **and** rising bar-over-bar (scalp), confirming building upward momentum rather than a stale above-signal state.
+2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is rising bar-over-bar (scalp). The scalp variant fires anticipatorily: it does not require MACD to already be above signal, only that the gap is closing (or already-positive gap widening) — getting the entry *before* the crossover when momentum begins shifting up.
 3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
@@ -640,7 +640,7 @@ In **classic mode**, all conditions must be met simultaneously. In **scalp mode*
 The bot will open a short position (sell) when:
 
 1. **RSI**: Value is above the configured `upper-limit` (default 70), indicating the market is overbought and ripe for a reversal downward.
-2. **MACD Momentum**: The MACD line crosses below the Signal line (classic) or the MACD histogram (`macd − signal`) is negative **and** falling bar-over-bar (scalp), confirming building downward momentum.
+2. **MACD Momentum**: The MACD line crosses below the Signal line (classic) or the MACD histogram (`macd − signal`) is falling bar-over-bar (scalp). The scalp variant fires anticipatorily: it does not require MACD to already be below signal, only that the gap is closing (or already-negative gap widening) — entering *before* the bearish crossover when momentum begins shifting down.
 3. **Tendency**: The trend direction is "down" (DEMA below EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Upper Band than the Lower Band, suggesting a potential reversal from overbought conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX confirms the trend has strength.
