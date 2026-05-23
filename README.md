@@ -8,7 +8,8 @@
 - **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode and waits when the account cannot fund the detected side
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
-- **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system; no longer requires all signals simultaneously
+- **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system. v0.14.0 adds pullback-in-trend RSI, anticipatory MACD with optional consecutive-bar confirmation, Bollinger price-touch + squeeze, RSI-divergence bonus, ATR regime filter, recent-extreme guard, ATR-based TP/SL, time-stop, break-even pin, and MACD-peak exit
+- **Advanced Indicators** — RSI (+ optional SMA smoothing), MACD, DEMA, Bollinger Bands (+ width-ratio for squeeze), ADX, ATR, Stochastic RSI, swing-extrema divergence, and volume confirmation
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
 - **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
 - **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading
@@ -18,7 +19,6 @@
 - **AI Multi-Agent System** — Concurrent analysis from OpenAI, DeepSeek, and Claude with weighted consensus; when enabled, entries require explicit AI approval at the configured confidence threshold
 - **Sentiment Analysis** — Real-time news headlines and Fear & Greed Index integrated into AI decisions
 - **Trailing Stop-Loss** — Dynamically locks in profits as price moves favorably
-- **Advanced Indicators** — RSI, MACD, DEMA, Bollinger Bands, ADX, ATR, and volume confirmation
 - **Full OHLCV Analysis** — Uses complete candlestick data instead of close-only prices
 - **Auto-Notional Adjustment** — Automatically raises order quantity to meet Binance's minimum notional filter
 - **Config Validation** — Checks the YAML config file before starting a trading session
@@ -234,7 +234,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.13.0
+     v0.14.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -375,12 +375,14 @@ indicators:
     upper-limit: 70
     middle-limit: 50
     lower-limit: 30
+    smooth-length: 0      # >1 applies an SMA smoothing to RSI (e.g. 3)
   dema:
     length: 9
   macd:
     fast-length: 12
     slow-length: 26
     signal-length: 9
+    consecutive-bars: 0   # require N consecutive bars of histogram direction (0=no requirement)
   bollinger-bands:
     length: 20
     multiplier: 2.0
@@ -411,10 +413,12 @@ indicators:
 | `indicators.rsi.upper-limit` | int | `70` | Overbought threshold; must be above `middle-limit`. |
 | `indicators.rsi.middle-limit` | int | `50` | Neutral RSI threshold. |
 | `indicators.rsi.lower-limit` | int | `30` | Oversold threshold; must be below `middle-limit`. |
+| `indicators.rsi.smooth-length` | int | `0` | Applies an SMA smoothing of N to the RSI series (0/1 disables, behaves identically to v0.13.x). |
 | `indicators.dema.length` | int | `9` | DEMA lookback length for trend/proximity checks. |
 | `indicators.macd.fast-length` | int | `12` | Fast MACD EMA length; must be less than `slow-length`. |
 | `indicators.macd.slow-length` | int | `26` | Slow MACD EMA length. |
 | `indicators.macd.signal-length` | int | `9` | MACD signal EMA length. |
+| `indicators.macd.consecutive-bars` | int | `0` | Require histogram direction to hold for N consecutive bars to award the MACD scalp signal (0=last-bar only). |
 | `indicators.bollinger-bands.length` | int | `20` | Bollinger moving average length. |
 | `indicators.bollinger-bands.multiplier` | float | `2.0` | Standard deviation multiplier for band width. |
 | `indicators.atr.period` | int | `14` | ATR volatility lookback used by dynamic stop-loss logic. |
@@ -441,7 +445,7 @@ For bull trades, the stop tracks from the highest price after activation. For be
 
 ### Scalp Mode
 
-Scalp mode uses a score instead of requiring all six entry conditions at once. The six signals are RSI, MACD, tendency, Bollinger position, ADX strength, and volume confirmation.
+Scalp mode uses a score instead of requiring all entry conditions at once. The default signals are RSI pullback-in-trend, anticipatory MACD histogram, tendency / MACD zero-line gate, Bollinger price-touch, ADX strength and volume confirmation. Optional weighted scoring boosts MACD/RSI/BB (×2) and divergence (×3) so quality signals dominate quantity.
 
 ```yaml
 scalp-mode:
@@ -455,12 +459,30 @@ scalp-mode:
   cooldown-base-secs: 60
   atr-stop-loss: false
   atr-multiplier: 1.5
+  # --- v0.14.0 indicator overhaul (all opt-in) ---
+  weighted-scoring: false
+  bb-squeeze-enabled: false
+  bb-squeeze-ratio: 0.85
+  bb-squeeze-window: 20
+  volume-strong-multiplier: 0.0      # e.g. 1.5 → bonus if vol > 1.5×avg
+  divergence-enabled: false
+  divergence-lookback: 14
+  divergence-swing-pad: 2
+  fast-trend-gate: false             # accept tendency OR MACD zero-line
+  tp-atr-multiplier: 0.0             # 0=use takeProfit %; >0 → max(takeProfit%, mult × ATR%)
+  sl-atr-multiplier: 0.0             # 0=use atr-multiplier; >0 → max(stopLoss%, mult × ATR%)
+  time-stop-bars: 0                  # exit flat positions after N bars (0=off)
+  breakeven-atr-mult: 0.0            # pin SL to entry once peak P&L ≥ mult × ATR%
+  min-atr-pct: 0.0                   # regime filter — skip entries when ATR% below this
+  max-atr-pct: 0.0                   # regime filter — skip entries when ATR% above this
+  macd-peak-exit: false              # exit in profit when MACD histogram rolls over
+  recent-extreme-bars: 0             # skip BULL near recent high / BEAR near recent low
 ```
 
 | Field | Type | Sample | Description |
 |-------|------|--------|-------------|
 | `scalp-mode.enabled` | bool | `false` | Enables score-based scalp entries. |
-| `scalp-mode.min-score` | int | `3` | Required matching signals out of 6; valid range is 1-6 when enabled. |
+| `scalp-mode.min-score` | int | `3` | Required score threshold (unweighted: out of 6; weighted: out of higher max with bonuses). |
 | `scalp-mode.post-buy-delay` | int | `30` | Seconds to wait after fill before exit monitoring. |
 | `scalp-mode.inter-op-delay` | int | `60` | Seconds to wait between completed operations. |
 | `scalp-mode.require-rsi-exit` | bool | `true` | Requires RSI momentum confirmation for take-profit exits when true. |
@@ -469,6 +491,23 @@ scalp-mode:
 | `scalp-mode.cooldown-base-secs` | int | `60` | Base cooldown seconds; doubles after additional consecutive stop-losses. |
 | `scalp-mode.atr-stop-loss` | bool | `false` | Uses ATR as a dynamic stop-loss floor. |
 | `scalp-mode.atr-multiplier` | float | `1.5` | Dynamic floor multiplier: `max(configured SL, atr-multiplier * ATR%)`. |
+| `scalp-mode.weighted-scoring` | bool | `false` | Doubles MACD/RSI/BB weight (×2) and divergence (×3). |
+| `scalp-mode.bb-squeeze-enabled` | bool | `false` | Adds a bonus signal when Bollinger band width is compressed (energy build-up). |
+| `scalp-mode.bb-squeeze-ratio` | float | `0.85` | BB width must be ≤ this × average width to qualify as a squeeze. |
+| `scalp-mode.bb-squeeze-window` | int | `20` | Lookback window for the BB-width average. |
+| `scalp-mode.volume-strong-multiplier` | float | `0.0` | If >0, awards a bonus signal when current volume > mult × avg-volume. |
+| `scalp-mode.divergence-enabled` | bool | `false` | Adds a (weighted) bonus signal on bullish/bearish RSI divergence. |
+| `scalp-mode.divergence-lookback` | int | `14` | Bars to scan for swing extrema in divergence detection. |
+| `scalp-mode.divergence-swing-pad` | int | `2` | Padding around extrema for swing detection. |
+| `scalp-mode.fast-trend-gate` | bool | `false` | Accepts trend signal if either tendency aligns OR MACD line is on the bullish/bearish side of zero. |
+| `scalp-mode.tp-atr-multiplier` | float | `0.0` | If >0, take-profit becomes `max(takeProfit%, mult × ATR%)`. |
+| `scalp-mode.sl-atr-multiplier` | float | `0.0` | If >0, stop-loss becomes `max(stopLoss%, mult × ATR%)`. Overrides `atr-multiplier` when set. |
+| `scalp-mode.time-stop-bars` | int | `0` | Exits flat (P&L≥0 but TP not reached) positions after N bars. |
+| `scalp-mode.breakeven-atr-mult` | float | `0.0` | Once peak P&L ≥ mult × ATR%, pins the stop-loss to the entry price. |
+| `scalp-mode.min-atr-pct` | float | `0.0` | Regime filter — refuse entries when ATR% is below this threshold (dead market). |
+| `scalp-mode.max-atr-pct` | float | `0.0` | Regime filter — refuse entries when ATR% is above this threshold (chaotic market). |
+| `scalp-mode.macd-peak-exit` | bool | `false` | Exits in profit when MACD histogram rolls over for 3 consecutive bars. |
+| `scalp-mode.recent-extreme-bars` | int | `0` | Blocks BULL entries near a recent high (BEAR near recent low) over the given lookback. |
 
 ### AI
 
@@ -606,24 +645,32 @@ The `bull-trade` command is designed to operate during **bull market trends**, l
 
 #### **Buy Conditions**
 
-In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` out of 6 are bullish (see [Scalp Mode Configuration](#scalp-mode-configuration)).
+In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` is reached (see [Scalp Mode Configuration](#scalp-mode-configuration)). Scalp mode uses *pullback-in-trend RSI* (RSI rising from below mid-line) and *Bollinger price-touch* (close at/below lower band) — both designed to catch turning points earlier than the classic extreme thresholds.
 
-1. **RSI**: Value is below the configured `lower-limit` (default 30), indicating the market is oversold and ripe for a reversal upward.
-2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is rising bar-over-bar (scalp). The scalp variant fires anticipatorily: it does not require MACD to already be above signal, only that the gap is closing (or already-positive gap widening) — getting the entry *before* the crossover when momentum begins shifting up.
-3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA).
-4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
+1. **RSI**: Classic: value below `lower-limit` (default 30). Scalp: pullback-in-trend (RSI below mid-line and rising for 2 bars), plus optional SMA smoothing via `indicators.rsi.smooth-length`.
+2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is rising bar-over-bar (scalp). The scalp variant fires anticipatorily and can require N consecutive bars of confirmation via `indicators.macd.consecutive-bars`.
+3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA). With `scalp-mode.fast-trend-gate`, MACD line above zero alternatively satisfies the trend.
+4. **Bollinger Position**: Classic: DEMA closer to Lower than Upper Band. Scalp: close at/below the lower band (price touch).
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
-6. **Volume Confirmation** *(if configured)*: Current volume exceeds its moving average, avoiding false breakouts.
-7. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
+6. **Volume Confirmation** *(if configured)*: Current volume exceeds its MA. `scalp-mode.volume-strong-multiplier` awards a bonus when volume exceeds mult × MA.
+7. **Bollinger Squeeze** *(scalp, opt-in)*: Bonus signal when BB width compresses below its rolling average (energy build-up).
+8. **Divergence** *(scalp, opt-in)*: Bullish RSI divergence vs. price awards a weighted-×3 bonus.
+9. **AI Consensus** *(if enabled)*: The multi-agent system must explicitly approve the entry at or above `ai.min-confidence`.
+
+Scalp mode also applies two **gates** that can veto an entry outright before scoring:
+- **Regime filter** (`min-atr-pct` / `max-atr-pct`): refuses trades when ATR% indicates a dead or chaotic market.
+- **Recent-extreme block** (`recent-extreme-bars`): blocks BULL entries within 0.1×ATR of a recent high (BEAR mirror).
 
 Before submitting the buy order, the bot verifies that the account has enough free quote-asset balance, such as USDT for `XRP/USDT`.
 
 #### **Sell Conditions**
-The bot will exit a position through one of three mechanisms:
+The bot will exit a position through one of five mechanisms:
 
 1. **Trailing Stop-Loss** *(if enabled)*: After the price rises by `activation-pct` above buy price, the stop trails from the highest price. Triggers when price drops by `trailing-pct` from the peak.
-2. **Fixed Stop-Loss**: The price drops to the stop-loss percentage below buy price. Executes immediately (no AI delay on protective exits).
-3. **Take Profit**: The price reaches the take-profit percentage AND RSI is declining (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
+2. **Fixed Stop-Loss**: The price drops to the stop-loss percentage below buy price (widened by `atr-stop-loss`/`sl-atr-multiplier` if configured; pinned to entry by `breakeven-atr-mult` once peak P&L is reached). Executes immediately.
+3. **Time-Stop** *(scalp, opt-in)*: Exits flat positions (P&L ≥ 0, TP not reached) after `time-stop-bars` bars.
+4. **MACD-Peak Exit** *(scalp, opt-in)*: Exits in profit when the MACD histogram rolls over (3-bar peak), locking gains before reversal.
+5. **Take Profit**: The price reaches `effectiveTP = max(takeProfit%, tp-atr-multiplier × ATR%)` AND RSI is declining (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
 
 Before submitting an exit sell order, the bot verifies that the account has enough free base-asset balance for the quantity being sold.
 
@@ -650,11 +697,13 @@ The bot will open a short position (sell) when:
 Before submitting the sell entry, the bot verifies that the account has enough free base-asset balance, such as BTC for `BTC/USDT`.
 
 #### **Buy-Back Exit Conditions**
-The bot will exit the bear position (buy back) through one of three mechanisms:
+The bot will exit the bear position (buy back) through one of five mechanisms (same set as bull, mirrored):
 
 1. **Trailing Stop** *(if enabled)*: After the price drops by `activation-pct` below sell price, the stop trails from the lowest price. Triggers when price rises by `trailing-pct` from the trough.
-2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price. Executes immediately.
-3. **Take Profit**: The price drops to the take-profit percentage AND RSI is rising (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
+2. **Fixed Stop-Loss**: The price rises to the stop-loss percentage above sell price (widened or break-even-pinned as in bull). Executes immediately.
+3. **Time-Stop** *(scalp, opt-in)*: Exits flat positions after `time-stop-bars` bars.
+4. **MACD-Peak Exit** *(scalp, opt-in)*: Exits in profit when the bearish MACD histogram rolls over.
+5. **Take Profit**: The price drops to `effectiveTP = max(takeProfit%, tp-atr-multiplier × ATR%)` AND RSI is rising (skipped in scalp mode when `require-rsi-exit: false`) AND the AI supports the exit (if enabled).
 
 Before submitting a buy-back order, the bot verifies that the account has enough free quote-asset balance for the estimated cost.
 

@@ -117,36 +117,31 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 		return SignalHold
 	}
 	closes := ohlcv.Closes[:i+1]
-	dema := indicator.CalculateDEMA(closes, cfg.Indicators.Dema.Length)
-	rsi := indicator.CalculateRSI(closes, cfg.Indicators.Rsi.Length)
+	rsi := indicator.CalculateSmoothedRSI(closes, cfg.Indicators.Rsi.Length, cfg.Indicators.Rsi.SmoothLength)
 	macdLine, signalLine := indicator.CalculateMACD(closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
 	bb, err := indicator.CalculateBollingerBands(closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
-	if err != nil || len(dema) == 0 || len(rsi) == 0 || len(macdLine) < 2 || len(signalLine) < 2 || len(bb.LowerBand) == 0 {
+	if err != nil || len(rsi) == 0 || len(macdLine) < 2 || len(signalLine) < 2 || len(bb.LowerBand) == 0 {
 		return SignalHold
 	}
-	score := 0
-	currentDema := dema[len(dema)-1]
-	lowerBand := bb.LowerBand[len(bb.LowerBand)-1]
-	upperBand := bb.UpperBand[len(bb.UpperBand)-1]
-	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit) {
-		score++
+	var atrVal float64
+	if cfg.Indicators.Atr.Period > 0 {
+		atr := indicator.CalculateATR(ohlcv.Highs[:i+1], ohlcv.Lows[:i+1], closes, cfg.Indicators.Atr.Period)
+		if len(atr) > 0 {
+			atrVal = atr[len(atr)-1]
+		}
 	}
-	hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
-	prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
-	if hist > prevHist {
-		score++
+	eval := evaluateScalp(scalpEvalInput{
+		IsBull: true, Cfg: cfg,
+		Closes: closes, RSI: rsi,
+		MACDLine: macdLine, SignalLine: signalLine,
+		BB: bb, Tendency: snapshot.Tendency,
+		ADXStrong: true, // ADX is permissive in the registry/backtest strategy
+		ATRVal:    atrVal, Price: price,
+	})
+	if eval.RegimeBlocked || eval.ExtremeBlocked {
+		return SignalHold
 	}
-	if snapshot.Tendency == "up" {
-		score++
-	}
-	if math.Abs(currentDema-lowerBand) < math.Abs(currentDema-upperBand) {
-		score++
-	}
-	minScore := cfg.ScalpMode.MinScore
-	if minScore <= 0 {
-		minScore = 3
-	}
-	if score >= minScore {
+	if eval.Score >= eval.MinScore {
 		return SignalBuy
 	}
 	return SignalHold

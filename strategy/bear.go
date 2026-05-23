@@ -161,7 +161,7 @@ func bearTradeLoop(
 			// indicators
 			dema := indicator.CalculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
 			currentDema := dema[len(dema)-1]
-			rsi := indicator.CalculateRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length)
+			rsi := indicator.CalculateSmoothedRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length, cfg.Indicators.Rsi.SmoothLength)
 			macdLine, signalLine := indicator.CalculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
 			bb, err := indicator.CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
 			if err != nil {
@@ -260,70 +260,28 @@ func bearTradeLoop(
 			// when to sell (bear entry) — scalp mode uses scoring; classic mode requires all conditions
 			var shouldSell bool
 			if cfg.ScalpMode.Enabled {
-				score := 0
-				var conditions []entryCondition
-
-				rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.UpperLimit)
-				if rsiOk {
-					score++
-				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("RSI %.1f > %d (upper limit)", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit),
-					Met:  rsiOk,
+				eval := evaluateScalp(scalpEvalInput{
+					IsBull: false, Cfg: cfg,
+					Closes: ohlcv.Closes, RSI: rsi,
+					MACDLine: macdLine, SignalLine: signalLine,
+					BB: bb, Tendency: tendency,
+					ADXStrong: adxStrong, ADXVal: adxVal,
+					CurrentVolume: currentVolume, AvgVolume: avgVolume,
+					ATRVal: atrVal, Price: price,
 				})
-
-				hist := macdLine[len(macdLine)-1] - signalLine[len(signalLine)-1]
-				prevHist := macdLine[len(macdLine)-2] - signalLine[len(signalLine)-2]
-				macdOk := hist < prevHist
-				if macdOk {
-					score++
+				if eval.RegimeBlocked {
+					dash.LogInfo(fmt.Sprintf("[yellow]Regime gate[-] %s — skipping BEAR entry", eval.RegimeReason))
+					time.Sleep(refreshInterval)
+					continue
 				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("MACD histogram falling (%.6f < %.6f)", hist, prevHist),
-					Met:  macdOk,
-				})
-
-				tendOk := tendency == "down"
-				if tendOk {
-					score++
+				if eval.ExtremeBlocked {
+					dash.LogInfo(fmt.Sprintf("[yellow]Recent-extreme gate[-] %s — skipping BEAR entry", eval.ExtremeReason))
+					time.Sleep(refreshInterval)
+					continue
 				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("Tendency %s = down", tendency),
-					Met:  tendOk,
-				})
-
-				bbOk := distanceToUpper < distanceToLower
-				if bbOk {
-					score++
-				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("Closer to upper BB (upper=%.4f, lower=%.4f)", distanceToUpper, distanceToLower),
-					Met:  bbOk,
-				})
-
-				if adxStrong {
-					score++
-				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("ADX strong (%.1f > %d)", adxVal, cfg.Indicators.Adx.Threshold),
-					Met:  adxStrong,
-				})
-
-				if volumeConfirmed {
-					score++
-				}
-				conditions = append(conditions, entryCondition{
-					Name: fmt.Sprintf("Volume confirmed (%.0f > avg %.0f)", currentVolume, avgVolume),
-					Met:  volumeConfirmed,
-				})
-
-				minScore := cfg.ScalpMode.MinScore
-				if minScore <= 0 {
-					minScore = 3
-				}
-				shouldSell = score >= minScore && aiApproved
+				shouldSell = eval.Score >= eval.MinScore && aiApproved
 				if shouldSell {
-					logEntryConditions(dash, "BEAR", conditions, score, 6, minScore, true)
+					logEntryConditions(dash, "BEAR", eval.Conditions, eval.Score, eval.MaxScore, eval.MinScore, true)
 					if !aiApproved {
 						dash.LogInfo("  [red]✗[-] AI approval")
 					}
@@ -392,6 +350,9 @@ func bearTradeLoop(
 		lowestPrice := sellPrice
 		sellProceeds := sellPrice * qty
 		exitType := "" // tracks how position was closed: "tp", "ts", "sl"
+		barsSinceEntry := 0
+		peakPnL := 0.0
+		breakevenActive := false
 
 		for {
 			ohlcv, err := exchange.GetHistoricalOHLCV(client, ticker, interval, period)
@@ -409,11 +370,16 @@ func bearTradeLoop(
 
 			price := ohlcv.Closes[len(ohlcv.Closes)-1]
 			prevPrice := ohlcv.Closes[len(ohlcv.Closes)-2]
-			rsi := indicator.CalculateRSI(rsiprices, cfg.Indicators.Rsi.Length)
+			rsi := indicator.CalculateSmoothedRSI(rsiprices, cfg.Indicators.Rsi.Length, cfg.Indicators.Rsi.SmoothLength)
+			macdLine, signalLine := indicator.CalculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
 			dash.UpdatePrice(price, prevPrice, roundPrice)
 
 			// update indicators with P&L
 			pnl := (sellPrice - price) / sellPrice * 100
+			if pnl > peakPnL {
+				peakPnL = pnl
+			}
+			barsSinceEntry++
 			var atrVal float64
 			if cfg.Indicators.Atr.Period > 0 {
 				atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
@@ -467,25 +433,30 @@ func bearTradeLoop(
 				}
 			}
 
-			// ATR-based dynamic stop-loss: use max(configuredSL, atrMultiplier × ATR%)
-			effectiveSL := stopLoss
-			if cfg.ScalpMode.ATRStopLoss && cfg.Indicators.Atr.Period > 0 {
-				atr := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
-				if len(atr) > 0 {
-					atrMultiplier := cfg.ScalpMode.ATRMultiplier
-					if atrMultiplier <= 0 {
-						atrMultiplier = 1.5
-					}
-					atrPct := (atr[len(atr)-1] / price) * atrMultiplier * 100
-					if atrPct > effectiveSL {
-						dash.LogInfo(fmt.Sprintf("[yellow]ATR-SL[-] widened SL from %.2f%% to %.2f%% (ATR=%.8f, price=%.8f)",
-							stopLoss, atrPct, atr[len(atr)-1], price))
-						effectiveSL = atrPct
-					}
+			// ATR-aware effective TP/SL (covers ATRStopLoss + TP/SL ATR multipliers)
+			effectiveTP, effectiveSL := effectiveTPAndSL(cfg, takeProfit, stopLoss, atrVal, price)
+			if effectiveSL > stopLoss {
+				dash.LogInfo(fmt.Sprintf("[yellow]ATR-SL[-] widened SL from %.2f%% to %.2f%% (ATR=%.8f, price=%.8f)",
+					stopLoss, effectiveSL, atrVal, price))
+			}
+
+			// Break-even: once peak P&L >= BreakevenATRMult × ATR%, pin SL to entry price
+			if cfg.ScalpMode.BreakevenATRMult > 0 && atrVal > 0 && !breakevenActive {
+				atrPct := (atrVal / sellPrice) * 100
+				if peakPnL >= cfg.ScalpMode.BreakevenATRMult*atrPct {
+					breakevenActive = true
+					dash.LogInfo(fmt.Sprintf("[lime]BREAK-EVEN[-] peak P&L %.2f%% ≥ %.1f×ATR%% (%.2f%%): SL pinned to entry %.*f",
+						peakPnL, cfg.ScalpMode.BreakevenATRMult, atrPct, roundPrice, sellPrice))
+				}
+			}
+			if breakevenActive {
+				// pin stop-loss tolerance to zero (entry price acts as ceiling for bear)
+				if effectiveSL > 0 {
+					effectiveSL = 0
 				}
 			}
 
-			// stop loss: price goes UP (using effective SL which may be ATR-widened)
+			// stop loss: price goes UP (using effective SL which may be ATR-widened or break-even-pinned)
 			stopLossPrice := sellPrice * (1 + effectiveSL/100)
 			if price >= stopLossPrice {
 				dash.SetPhase("STOP LOSS")
@@ -514,7 +485,58 @@ func bearTradeLoop(
 			}
 
 			// take profit with AI exit confirmation
-			profitPrice := sellPrice * (1 - takeProfit/100)
+			profitPrice := sellPrice * (1 - effectiveTP/100)
+
+			// Time-stop: exit flat positions that have lingered too long
+			if cfg.ScalpMode.TimeStopBars > 0 && barsSinceEntry >= cfg.ScalpMode.TimeStopBars && pnl >= 0 && price > profitPrice {
+				dash.SetPhase("TIME STOP")
+				dash.LogInfo(fmt.Sprintf("[yellow]Time-stop triggered:[-] %d bars since entry, P&L %+.2f%% (TP not reached)", barsSinceEntry, pnl))
+				buyBackFactor := 1 - cfg.BuyBackBuffer()/100
+				buyBackQty := indicator.RoundFloat((sellProceeds*buyBackFactor)/price, roundAmount)
+				buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
+				if err != nil {
+					dash.LogError(fmt.Sprintf("Time-stop MARKET BUY failed: %v", err))
+					return
+				}
+				buyOrder := reflect.ValueOf(buy).Elem()
+				orderId := buyOrder.FieldByName("OrderId").Int()
+				dash.LogOrder(fmt.Sprintf("[yellow::b]TIME-STOP MARKET BUY[-] %f %s @ [white::b]%.*f[-] %s (P&L %+.2f%%)",
+					buyBackQty, scoin, roundPrice, price, dcoin, pnl))
+				if !waitOrderFilled(dash, ticker, orderId, "[yellow::b]TIME-STOP MARKET BUY[-] filled!", refreshInterval, cfg) {
+					dash.LogInfo("[yellow]Time-stop BUY did not fill; continuing buy-back monitoring[-]")
+					dash.SetPhase("MONITORING BUY-BACK")
+					time.Sleep(refreshInterval)
+					continue
+				}
+				exitType = "ts"
+				break
+			}
+
+			// MACD-peak exit: lock gains when histogram rolls over in profit
+			if pnl > 0 && shouldMACDPeakExit(cfg, macdLine, signalLine, false, pnl) {
+				dash.SetPhase("MACD PEAK EXIT")
+				dash.LogInfo(fmt.Sprintf("[fuchsia]MACD-peak exit:[-] histogram rolling over while in profit (P&L %+.2f%%)", pnl))
+				buyBackFactor := 1 - cfg.BuyBackBuffer()/100
+				buyBackQty := indicator.RoundFloat((sellProceeds*buyBackFactor)/price, roundAmount)
+				buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
+				if err != nil {
+					dash.LogError(fmt.Sprintf("MACD-peak MARKET BUY failed: %v", err))
+					return
+				}
+				buyOrder := reflect.ValueOf(buy).Elem()
+				orderId := buyOrder.FieldByName("OrderId").Int()
+				dash.LogOrder(fmt.Sprintf("[fuchsia::b]MACD-PEAK MARKET BUY[-] %f %s @ [white::b]%.*f[-] %s (P&L %+.2f%%)",
+					buyBackQty, scoin, roundPrice, price, dcoin, pnl))
+				if !waitOrderFilled(dash, ticker, orderId, "[fuchsia::b]MACD-PEAK MARKET BUY[-] filled!", refreshInterval, cfg) {
+					dash.LogInfo("[yellow]MACD-peak BUY did not fill; continuing buy-back monitoring[-]")
+					dash.SetPhase("MONITORING BUY-BACK")
+					time.Sleep(refreshInterval)
+					continue
+				}
+				exitType = "tp"
+				break
+			}
+
 			var aiBuyApproved = true
 			if price <= profitPrice && aiOrch != nil {
 				snapshot := &ai.TechnicalSnapshot{
@@ -537,7 +559,7 @@ func bearTradeLoop(
 				dash.SetPhase("TAKE PROFIT")
 				pnlPct := (sellPrice - price) / sellPrice * 100
 				dash.LogInfo(fmt.Sprintf("[green]Take-profit triggered:[-] price %.*f <= TP %.*f (sell %.*f, TP %.2f%%, P&L %+.2f%%)",
-					roundPrice, price, roundPrice, profitPrice, roundPrice, sellPrice, takeProfit, pnlPct))
+					roundPrice, price, roundPrice, profitPrice, roundPrice, sellPrice, effectiveTP, pnlPct))
 				dash.LogInfo(fmt.Sprintf("  [green]✓[-] RSI exit ok (RSI rising=%v, scalp bypass=%v)", rsiRising, cfg.ScalpMode.Enabled && !cfg.ScalpMode.RequireRSIExit))
 				if aiOrch != nil {
 					dash.LogInfo(fmt.Sprintf("  [green]✓[-] AI buy-back approved"))

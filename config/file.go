@@ -41,19 +41,21 @@ type Config struct {
 	} `yaml:"tendency"`
 	Indicators struct {
 		Rsi struct {
-			Interval    string `yaml:"interval"`
-			Length      int    `yaml:"length"`
-			UpperLimit  int    `yaml:"upper-limit"`
-			MiddleLimit int    `yaml:"middle-limit"`
-			LowerLimit  int    `yaml:"lower-limit"`
+			Interval     string `yaml:"interval"`
+			Length       int    `yaml:"length"`
+			UpperLimit   int    `yaml:"upper-limit"`
+			MiddleLimit  int    `yaml:"middle-limit"`
+			LowerLimit   int    `yaml:"lower-limit"`
+			SmoothLength int    `yaml:"smooth-length"` // optional EMA pre-smoothing of price before RSI (0/1 = off)
 		} `yaml:"rsi"`
 		Dema struct {
 			Length int `yaml:"length"`
 		} `yaml:"dema"`
 		Macd struct {
-			FastLength   int `yaml:"fast-length"`
-			SlowLength   int `yaml:"slow-length"`
-			SignalLength int `yaml:"signal-length"`
+			FastLength      int `yaml:"fast-length"`
+			SlowLength      int `yaml:"slow-length"`
+			SignalLength    int `yaml:"signal-length"`
+			ConsecutiveBars int `yaml:"consecutive-bars"` // require N consecutive bars of histogram in direction for scalp (default 1)
 		} `yaml:"macd"`
 		BollingerBands struct {
 			Length     int     `yaml:"length"`
@@ -93,7 +95,7 @@ type Config struct {
 	RefreshInterval int `yaml:"refresh-interval"`
 	ScalpMode       struct {
 		Enabled          bool    `yaml:"enabled"`
-		MinScore         int     `yaml:"min-score"`          // min bullish signals out of 6 to trigger entry
+		MinScore         int     `yaml:"min-score"`          // min bullish signals to trigger entry (compared against weighted or unweighted total)
 		PostBuyDelay     int     `yaml:"post-buy-delay"`     // seconds to wait after buy fill before sell monitoring
 		InterOpDelay     int     `yaml:"inter-op-delay"`     // seconds to wait between operations
 		RequireRSIExit   bool    `yaml:"require-rsi-exit"`   // require RSI declining for take-profit
@@ -102,6 +104,25 @@ type Config struct {
 		CooldownBaseSecs int     `yaml:"cooldown-base-secs"` // base cooldown seconds, doubles each time (default: 60)
 		ATRStopLoss      bool    `yaml:"atr-stop-loss"`      // use ATR-based dynamic stop-loss floor
 		ATRMultiplier    float64 `yaml:"atr-multiplier"`     // SL = max(configured, atrMultiplier × ATR%) (default: 1.5)
+
+		// --- v0.14 scalp improvements (all opt-in unless noted) ---
+		WeightedScoring        bool    `yaml:"weighted-scoring"`         // use weighted signals (MACD=2, RSI=2, BB=2, Divergence=3, others=1)
+		BBSqueezeEnabled       bool    `yaml:"bb-squeeze-enabled"`       // add a score point when bands are squeezed (width/avg < bb-squeeze-ratio)
+		BBSqueezeRatio         float64 `yaml:"bb-squeeze-ratio"`         // squeeze threshold (default 0.6)
+		BBSqueezeWindow        int     `yaml:"bb-squeeze-window"`        // avg-width lookback bars (default 20)
+		VolumeStrongMultiplier float64 `yaml:"volume-strong-multiplier"` // required ratio of current/avg volume for vol signal (default 1.5)
+		DivergenceEnabled      bool    `yaml:"divergence-enabled"`       // detect RSI bullish/bearish divergence and add high-weight score
+		DivergenceLookback     int     `yaml:"divergence-lookback"`      // bars to search for swings (default 30)
+		DivergenceSwingPad     int     `yaml:"divergence-swing-pad"`     // bars of confirmation on each side of swing (default 2)
+		FastTrendGate          bool    `yaml:"fast-trend-gate"`          // require MACD line above zero for bull / below for bear (faster than DEMA tendency)
+		TPATRMultiplier        float64 `yaml:"tp-atr-multiplier"`        // when > 0, take-profit % = (ATR/price * 100) × this (overrides --tp)
+		SLATRMultiplier        float64 `yaml:"sl-atr-multiplier"`        // when > 0, stop-loss % = (ATR/price * 100) × this (overrides --sl; orthogonal to ATRStopLoss floor)
+		TimeStopBars           int     `yaml:"time-stop-bars"`           // when > 0, exit at-or-above breakeven after N bars without TP
+		BreakevenATRMult       float64 `yaml:"breakeven-atr-mult"`       // when > 0, raise SL to entry once price moves this many ATRs in profit
+		MinATRPct              float64 `yaml:"min-atr-pct"`              // when > 0, skip entries while ATR% < this (avoid dead-flat regime)
+		MaxATRPct              float64 `yaml:"max-atr-pct"`              // when > 0, skip entries while ATR% > this (avoid news-driven chaos)
+		MACDPeakExit           bool    `yaml:"macd-peak-exit"`           // exit when MACD histogram peaks in profit, before TP/SL hit
+		RecentExtremeBars      int     `yaml:"recent-extreme-bars"`      // when > 0, block entries against a fresh N-bar extreme
 	} `yaml:"scalp-mode"`
 	TopGainers struct {
 		QuoteAsset     string   `yaml:"quote-asset"`
