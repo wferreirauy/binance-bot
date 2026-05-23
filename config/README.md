@@ -137,9 +137,9 @@ Relative Strength Index — measures momentum to detect overbought/oversold cond
 |-----------|------|---------|-------------|
 | `interval` | string | - | Candlestick interval for RSI price data (can differ from the main trading interval). |
 | `length` | int | - | Number of periods for RSI calculation. Standard is 14; lower values are more reactive. |
-| `upper-limit` | int | - | RSI above this value is considered overbought. In bull mode, entry is blocked above this. |
+| `upper-limit` | int | - | RSI above this value is considered overbought. In bear mode, entry requires RSI above this threshold. |
 | `middle-limit` | int | - | Neutral RSI level (informational). |
-| `lower-limit` | int | - | RSI below this value is considered oversold. In bear mode, entry is blocked below this. |
+| `lower-limit` | int | - | RSI below this value is considered oversold. In bull mode, entry requires RSI below this threshold. |
 
 ```yaml
 indicators:

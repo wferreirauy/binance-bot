@@ -89,7 +89,7 @@ func (classicBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	distanceToLower := math.Abs(currentDema - lowerBand)
 	macdCrossOk := macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 		macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1]
-	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) &&
+	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit) &&
 		macdCrossOk &&
 		snapshot.Tendency == "up" &&
 		distanceToLower < distanceToUpper {
@@ -128,7 +128,7 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	currentDema := dema[len(dema)-1]
 	lowerBand := bb.LowerBand[len(bb.LowerBand)-1]
 	upperBand := bb.UpperBand[len(bb.UpperBand)-1]
-	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit) {
+	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit) {
 		score++
 	}
 	if macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1] {

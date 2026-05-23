@@ -486,12 +486,12 @@ operationLoop:
 				var conditions []entryCondition
 
 				if isBull {
-					rsiOk := rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit)
+					rsiOk := rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit)
 					if rsiOk {
 						score++
 					}
 					conditions = append(conditions, entryCondition{
-						Name: fmt.Sprintf("RSI %.1f < %d (upper limit)", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit),
+						Name: fmt.Sprintf("RSI %.1f < %d (lower limit)", rsi[len(rsi)-1], cfg.Indicators.Rsi.LowerLimit),
 						Met:  rsiOk,
 					})
 
@@ -522,12 +522,12 @@ operationLoop:
 						Met:  bbOk,
 					})
 				} else {
-					rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit)
+					rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.UpperLimit)
 					if rsiOk {
 						score++
 					}
 					conditions = append(conditions, entryCondition{
-						Name: fmt.Sprintf("RSI %.1f > %d (lower limit)", rsi[len(rsi)-1], cfg.Indicators.Rsi.LowerLimit),
+						Name: fmt.Sprintf("RSI %.1f > %d (upper limit)", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit),
 						Met:  rsiOk,
 					})
 
@@ -592,7 +592,7 @@ operationLoop:
 				}
 			} else {
 				if isBull {
-					rsiOk := rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.UpperLimit)
+					rsiOk := rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit)
 					macdCrossOk := macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
 						macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1]
 					tendOk := tendency == "up"
@@ -603,7 +603,7 @@ operationLoop:
 
 					if shouldEnter {
 						conditions := []entryCondition{
-							{Name: fmt.Sprintf("RSI %.1f < %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit), Met: rsiOk},
+							{Name: fmt.Sprintf("RSI %.1f < %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.LowerLimit), Met: rsiOk},
 							{Name: fmt.Sprintf("MACD bullish crossover (%.6f > %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]), Met: macdCrossOk},
 							{Name: fmt.Sprintf("Tendency %s = up", tendency), Met: tendOk},
 							{Name: fmt.Sprintf("Closer to lower BB (lower=%.4f, upper=%.4f)", distanceToLower, distanceToUpper), Met: bbOk},
@@ -613,7 +613,7 @@ operationLoop:
 						logEntryConditions(dash, "BULL", conditions, 6, 6, 6, false)
 					}
 				} else {
-					rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.LowerLimit)
+					rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.UpperLimit)
 					macdCrossOk := macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
 						macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1]
 					tendOk := tendency == "down"
@@ -624,7 +624,7 @@ operationLoop:
 
 					if shouldEnter {
 						conditions := []entryCondition{
-							{Name: fmt.Sprintf("RSI %.1f > %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.LowerLimit), Met: rsiOk},
+							{Name: fmt.Sprintf("RSI %.1f > %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit), Met: rsiOk},
 							{Name: fmt.Sprintf("MACD bearish crossover (%.6f < %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]), Met: macdCrossOk},
 							{Name: fmt.Sprintf("Tendency %s = down", tendency), Met: tendOk},
 							{Name: fmt.Sprintf("Closer to upper BB (upper=%.4f, lower=%.4f)", distanceToUpper, distanceToLower), Met: bbOk},

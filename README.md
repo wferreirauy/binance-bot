@@ -608,7 +608,7 @@ The `bull-trade` command is designed to operate during **bull market trends**, l
 
 In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` out of 6 are bullish (see [Scalp Mode Configuration](#scalp-mode-configuration)).
 
-1. **RSI**: Value is below the configured `upper-limit` (default 70), indicating the market is not overbought.
+1. **RSI**: Value is below the configured `lower-limit` (default 30), indicating the market is oversold and ripe for a reversal upward.
 2. **MACD Crossover**: The MACD line crosses above the Signal line (classic) or is above the Signal line (scalp), suggesting upward momentum.
 3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Lower Band than the Upper Band, suggesting a potential reversal from oversold conditions.
@@ -639,7 +639,7 @@ In **classic mode**, all conditions must be met simultaneously. In **scalp mode*
 
 The bot will open a short position (sell) when:
 
-1. **RSI**: Value is above the configured `lower-limit` (default 30), indicating the market is not oversold.
+1. **RSI**: Value is above the configured `upper-limit` (default 70), indicating the market is overbought and ripe for a reversal downward.
 2. **MACD Crossover**: The MACD line crosses below the Signal line, suggesting downward momentum.
 3. **Tendency**: The trend direction is "down" (DEMA below EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Upper Band than the Lower Band, suggesting a potential reversal from overbought conditions.
