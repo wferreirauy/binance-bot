@@ -11,6 +11,10 @@ import (
 	"github.com/wferreirauy/binance-bot/config"
 )
 
+// Version is set by main at startup so the TUI can display the running
+// binary's semantic version. It defaults to "dev" for tests/local builds.
+var Version = "dev"
+
 // Dashboard manages the multi-panel terminal UI for the trading bot.
 type Dashboard struct {
 	app         *tview.Application
@@ -37,16 +41,26 @@ type Dashboard struct {
 
 	fileLogger *FileLogger
 	cfg        *config.Config
+
+	// logThrottle coalesces identical INFO log lines emitted within
+	// logThrottleWindow so the activity log and file logger don't fill
+	// with high-frequency status messages (e.g. "Tendency is ... —
+	// waiting"). Window <= 0 disables throttling.
+	logThrottleMu     sync.Mutex
+	logThrottleWindow time.Duration
+	logThrottleSeen   map[string]time.Time
 }
 
 // NewDashboard creates a new TUI dashboard with multi-panel layout.
 func NewDashboard(tradeMode, symbol string) *Dashboard {
 	d := &Dashboard{
-		app:       tview.NewApplication(),
-		tradeMode: tradeMode,
-		symbol:    symbol,
-		operation: 1,
-		phase:     "SCANNING",
+		app:               tview.NewApplication(),
+		tradeMode:         tradeMode,
+		symbol:            symbol,
+		operation:         1,
+		phase:             "SCANNING",
+		logThrottleWindow: 60 * time.Second,
+		logThrottleSeen:   make(map[string]time.Time),
 	}
 
 	// Header panel
@@ -172,8 +186,8 @@ func (d *Dashboard) headerText() string {
 	case "AUTO":
 		modeColor = "cyan"
 	}
-	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help [white]|[-] [green]c[-] config",
-		modeColor, d.tradeMode, d.symbol, d.operation, d.phase)
+	return fmt.Sprintf("[%s::b]%s MODE[-] [white]|[-] [yellow::b]%s[-] [white]|[-] [cyan]Op #%d[-] [white]|[-] [aqua]%s[-] [white]| [red]q[-] quit [white]|[-] [blue]h[-] help [white]|[-] [green]c[-] config [white]|[-] [dimgray]%s[-]",
+		modeColor, d.tradeMode, d.symbol, d.operation, d.phase, Version)
 }
 
 // SetTradeMode updates the trade mode displayed in the header (e.g. BULL, BEAR, AUTO).
@@ -692,6 +706,44 @@ func (d *Dashboard) SetFileLogger(fl *FileLogger) {
 	d.fileLogger = fl
 }
 
+// SetLogThrottleWindow configures how long identical INFO log lines are
+// coalesced. Pass 0 (or negative) to disable throttling. The default is
+// 60 seconds, applied at NewDashboard.
+func (d *Dashboard) SetLogThrottleWindow(window time.Duration) {
+	d.logThrottleMu.Lock()
+	defer d.logThrottleMu.Unlock()
+	d.logThrottleWindow = window
+	if d.logThrottleSeen == nil {
+		d.logThrottleSeen = make(map[string]time.Time)
+	}
+}
+
+// shouldEmitThrottled returns true when the given (stripped) message has
+// not been logged within the active throttle window. It records the
+// current timestamp for future calls when emission is allowed. A
+// non-positive window disables throttling entirely.
+func (d *Dashboard) shouldEmitThrottled(key string) bool {
+	d.logThrottleMu.Lock()
+	defer d.logThrottleMu.Unlock()
+	if d.logThrottleWindow <= 0 {
+		return true
+	}
+	now := time.Now()
+	if last, ok := d.logThrottleSeen[key]; ok && now.Sub(last) < d.logThrottleWindow {
+		return false
+	}
+	d.logThrottleSeen[key] = now
+	// Opportunistic cleanup: drop entries older than 5x the window so the
+	// map can't grow unbounded across long sessions.
+	cutoff := now.Add(-5 * d.logThrottleWindow)
+	for k, t := range d.logThrottleSeen {
+		if t.Before(cutoff) {
+			delete(d.logThrottleSeen, k)
+		}
+	}
+	return true
+}
+
 // LogOrder appends an order event to the activity log panel.
 func (d *Dashboard) LogOrder(text string) {
 	now := time.Now().Format("15:04:05")
@@ -707,6 +759,9 @@ func (d *Dashboard) LogOrder(text string) {
 
 // LogInfo appends an informational message to the activity log.
 func (d *Dashboard) LogInfo(msg string) {
+	if !d.shouldEmitThrottled("INFO|" + stripColorTags(msg)) {
+		return
+	}
 	now := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[gray]%s[-] [aqua]%s[-]\n", now, msg)
 	d.app.QueueUpdateDraw(func() {

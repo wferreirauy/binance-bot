@@ -45,6 +45,7 @@ func DynamicTrade(
 	if cfg.BaseURL != "" {
 		exchange.BaseURL = cfg.BaseURL
 	}
+	SetBuyBackBufferPct(cfg.BuyBackBuffer())
 	period := cfg.HistoricalPrices.Period
 	interval := cfg.HistoricalPrices.Interval
 
@@ -147,7 +148,7 @@ func dynamicEntryBalanceCheck(ticker string, isBull bool, qty, price, buyFactor,
 	return exchange.CheckOrderBalanceWithFilters(ticker, side, adjQty, entryPrice, filters)
 }
 
-func dynamicEntryBalanceAvailable(dash *tui.Dashboard, ticker string, isBull bool, qty, price, buyFactor, sellFactor float64, roundPrice, roundAmount uint) bool {
+func dynamicEntryBalanceAvailable(dash *tui.Dashboard, ticker string, isBull bool, qty, price, buyFactor, sellFactor float64, roundPrice, roundAmount uint, lastWaitState *string) bool {
 	check, err := dynamicEntryBalanceCheck(ticker, isBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount)
 	if err != nil {
 		dash.LogError(fmt.Sprintf("Entry balance check failed: %v", err))
@@ -160,8 +161,14 @@ func dynamicEntryBalanceAvailable(dash *tui.Dashboard, ticker string, isBull boo
 	if !isBull {
 		mode = "BEAR"
 	}
-	dash.LogInfo(fmt.Sprintf("[yellow]%s entry skipped[-] — %s %s needs %.8f %s, available %.8f; waiting for a compatible tendency",
-		mode, check.Symbol, check.Side, check.Required, check.Asset, check.Available))
+	state := fmt.Sprintf("balance-wait:%s:%.2f", mode, check.Required-check.Available)
+	if lastWaitState == nil || *lastWaitState != state {
+		dash.LogInfo(fmt.Sprintf("[yellow]%s entry skipped[-] — %s %s needs %.8f %s, available %.8f; waiting for a compatible tendency",
+			mode, check.Symbol, check.Side, check.Required, check.Asset, check.Available))
+		if lastWaitState != nil {
+			*lastWaitState = state
+		}
+	}
 	return false
 }
 
@@ -191,6 +198,9 @@ operationLoop:
 		dash.SetPhase("DETECTING TENDENCY")
 		var tendency string
 		var isBull bool
+		// Track the last waiting-state we logged so we only emit a message
+		// when the tendency (or wait-reason) changes, avoiding log spam.
+		var lastWaitState string
 
 		for {
 			var latestPrice float64
@@ -260,18 +270,26 @@ operationLoop:
 			// When a strategy is forced, wait for tendency to match
 			if strategy == "bull" && tendency != "up" {
 				dash.SetTradeMode("BULL (waiting)")
-				dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [green]UP[-] tendency to match BULL strategy", tendency))
+				state := "bull-wait:" + tendency
+				if state != lastWaitState {
+					dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [green]UP[-] tendency to match BULL strategy", tendency))
+					lastWaitState = state
+				}
 				time.Sleep(refreshInterval)
 				continue
 			}
 			if strategy == "bear" && tendency != "down" {
 				dash.SetTradeMode("BEAR (waiting)")
-				dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [red]DOWN[-] tendency to match BEAR strategy", tendency))
+				state := "bear-wait:" + tendency
+				if state != lastWaitState {
+					dash.LogInfo(fmt.Sprintf("[yellow]Tendency is %s[-] — waiting for [red]DOWN[-] tendency to match BEAR strategy", tendency))
+					lastWaitState = state
+				}
 				time.Sleep(refreshInterval)
 				continue
 			}
 			candidateBull := tendency == "up"
-			if !dynamicEntryBalanceAvailable(dash, ticker, candidateBull, qty, latestPrice, buyFactor, sellFactor, roundPrice, roundAmount) {
+			if !dynamicEntryBalanceAvailable(dash, ticker, candidateBull, qty, latestPrice, buyFactor, sellFactor, roundPrice, roundAmount, &lastWaitState) {
 				if candidateBull {
 					dash.SetTradeMode("BULL (waiting balance)")
 				} else {
@@ -280,6 +298,7 @@ operationLoop:
 				time.Sleep(refreshInterval)
 				continue
 			}
+			lastWaitState = ""
 			break
 		}
 
@@ -327,7 +346,7 @@ operationLoop:
 					// auto mode: switch to the new tendency
 					dash.LogInfo(fmt.Sprintf("[yellow]Tendency flipped to %s during scanning — re-detecting[-]", tendency))
 					nextBull := tendency == "up"
-					if !dynamicEntryBalanceAvailable(dash, ticker, nextBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount) {
+					if !dynamicEntryBalanceAvailable(dash, ticker, nextBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount, nil) {
 						time.Sleep(refreshInterval)
 						continue operationLoop
 					}
@@ -618,7 +637,7 @@ operationLoop:
 			}
 
 			if shouldEnter {
-				if !dynamicEntryBalanceAvailable(dash, ticker, isBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount) {
+				if !dynamicEntryBalanceAvailable(dash, ticker, isBull, qty, price, buyFactor, sellFactor, roundPrice, roundAmount, nil) {
 					time.Sleep(refreshInterval)
 					continue operationLoop
 				}

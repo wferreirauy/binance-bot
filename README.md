@@ -234,7 +234,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.11.1
+     v0.13.0
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -344,6 +344,7 @@ fees:
   enabled: true
   default-taker-pct: 0.1
   buffer-pct: 0.05
+  buy-back-buffer-pct: 0.2
 ```
 
 | Field | Type | Sample | Description |
@@ -355,8 +356,9 @@ fees:
 | `fees.enabled` | bool | `true` | Enables fee-aware take-profit decisions. |
 | `fees.default-taker-pct` | float | `0.1` | Fallback taker fee percent when live fee lookup is unavailable. |
 | `fees.buffer-pct` | float | `0.05` | Extra safety buffer subtracted from take-profit decisions. |
+| `fees.buy-back-buffer-pct` | float | `0.2` | Percent withheld when sizing round-trip orders (buy-back, sell-back) and when scaling down orders after an insufficient-balance retry. Lower this when running with BNB fee discounts. Defaults to `0.2` when unset. |
 
-Before submitting any order, the bot checks Binance spot free balances for the required base or quote asset. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions.
+Before submitting any order, the bot checks Binance spot free balances for the required base or quote asset. Fee-aware mode subtracts estimated round-trip taker fees and `buffer-pct` from take-profit decisions. When an order is rejected with insufficient balance, the bot automatically retries once with the quantity reduced to fit the available balance (minus `buy-back-buffer-pct`).
 
 ### Tendency And Indicators
 

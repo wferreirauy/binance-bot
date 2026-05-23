@@ -174,6 +174,29 @@ func AdjustQuantity(qty, price float64, filters *SymbolFilters, roundPrecision u
 	return qty, adjusted
 }
 
+// AdjustQuantityDown truncates the quantity down to the largest value that
+// still meets LOT_SIZE. Unlike AdjustQuantity it never increases the
+// quantity — making it suitable for sizing an order to fit a fixed
+// available balance. It returns 0 when the truncated quantity violates
+// MIN_NOTIONAL or MIN_QTY (i.e. the balance is too small to place any
+// valid order on this symbol).
+func AdjustQuantityDown(qty, price float64, filters *SymbolFilters, roundPrecision uint) float64 {
+	if qty <= 0 {
+		return 0
+	}
+	if filters.StepSize > 0 {
+		qty = math.Floor(qty/filters.StepSize) * filters.StepSize
+	}
+	qty = indicator.RoundFloat(qty, roundPrecision)
+	if filters.MinQty > 0 && qty < filters.MinQty {
+		return 0
+	}
+	if filters.MinNotional > 0 && price > 0 && qty*price < filters.MinNotional {
+		return 0
+	}
+	return qty
+}
+
 // Orders fee = 0.01% (* 0.0001)
 
 func GetAllOrders(symbol string) {

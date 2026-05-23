@@ -25,6 +25,7 @@ fees:
   enabled: true
   default-taker-pct: 0.1
   buffer-pct: 0.05
+  buy-back-buffer-pct: 0.2
 
 tendency:
   interval: "1m"        # fast tendency on 1m (was 3m)

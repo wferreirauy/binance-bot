@@ -10,12 +10,13 @@ import (
 	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/server"
 	"github.com/wferreirauy/binance-bot/strategy"
+	"github.com/wferreirauy/binance-bot/tui"
 )
 
 func main() {
 	app := &cli.App{
 		Name:     "binance-bot",
-		Version:  "v0.12.1",
+		Version:  "v0.13.0",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -316,6 +317,7 @@ func main() {
 		},
 	}
 
+	tui.Version = app.Version
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}

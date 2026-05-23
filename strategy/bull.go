@@ -42,6 +42,7 @@ func BullTrade(
 	if cfg.BaseURL != "" {
 		exchange.BaseURL = cfg.BaseURL
 	}
+	SetBuyBackBufferPct(cfg.BuyBackBuffer())
 	period := cfg.HistoricalPrices.Period     // length period for moving average
 	interval := cfg.HistoricalPrices.Interval // time intervals of historical prices for trading
 

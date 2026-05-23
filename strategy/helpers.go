@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wferreirauy/binance-bot/ai"
@@ -15,6 +16,92 @@ import (
 	"github.com/wferreirauy/binance-bot/storage"
 	"github.com/wferreirauy/binance-bot/tui"
 )
+
+// buyBackBuffer holds the configured safety buffer (in percent) used when
+// scaling a fresh order down to fit available wallet balance after fees.
+// It defaults to config.DefaultBuyBackBufferPct and is updated once per
+// strategy run via SetBuyBackBufferPct.
+var (
+	buyBackBufferMu  sync.RWMutex
+	buyBackBufferPct = config.DefaultBuyBackBufferPct
+)
+
+// SetBuyBackBufferPct overrides the package-level safety buffer percent.
+// A non-positive value resets it to the built-in default.
+func SetBuyBackBufferPct(pct float64) {
+	buyBackBufferMu.Lock()
+	defer buyBackBufferMu.Unlock()
+	if pct <= 0 {
+		buyBackBufferPct = config.DefaultBuyBackBufferPct
+		return
+	}
+	buyBackBufferPct = pct
+}
+
+// currentBuyBackBufferPct returns the active safety buffer percent.
+func currentBuyBackBufferPct() float64 {
+	buyBackBufferMu.RLock()
+	defer buyBackBufferMu.RUnlock()
+	return buyBackBufferPct
+}
+
+// reduceQtyForBalance returns the largest qty that respects the symbol's
+// exchange filters and the wallet's available balance, leaving the
+// configured safety buffer in place. It returns 0 when no valid order
+// can be placed with the available balance.
+func reduceQtyForBalance(side string, filters *exchange.SymbolFilters, available, price float64, round uint) float64 {
+	if filters == nil || price <= 0 || available <= 0 {
+		return 0
+	}
+	bufferFactor := 1 - currentBuyBackBufferPct()/100
+	if bufferFactor <= 0 || bufferFactor > 1 {
+		bufferFactor = 1
+	}
+	var raw float64
+	switch side {
+	case "BUY":
+		raw = (available * bufferFactor) / price
+	case "SELL":
+		raw = available * bufferFactor
+	default:
+		return 0
+	}
+	return exchange.AdjustQuantityDown(raw, price, filters, round)
+}
+
+// tryPlaceOrder runs the given placeFn; if it fails with insufficient
+// balance, it scales the qty down to fit the wallet's free balance
+// (minus the configured buffer) and retries once. On success it returns
+// the order, the effective qty, and any reduction message.
+func tryPlaceOrder(label, symbol, side string, qty, price float64, filters *exchange.SymbolFilters, round uint, placeFn func(qty float64) (any, error)) (any, float64, error) {
+	order, err := placeFn(qty)
+	if err == nil {
+		return order, qty, nil
+	}
+	if !exchange.IsInsufficientBalance(err) {
+		return nil, qty, err
+	}
+	// Re-fetch live balance and rescale.
+	asset := filters.QuoteAsset
+	if side == "SELL" {
+		asset = filters.BaseAsset
+	}
+	available, balErr := exchange.GetBalance(asset)
+	if balErr != nil {
+		return nil, qty, err
+	}
+	reducedQty := reduceQtyForBalance(side, filters, available, price, round)
+	if reducedQty <= 0 || reducedQty >= qty {
+		return nil, qty, err
+	}
+	fmt.Printf("%s qty reduced from %.8f to %.8f to fit %.8f %s available (buffer %.2f%%, %s)\n",
+		label, qty, reducedQty, available, asset, currentBuyBackBufferPct(), symbol)
+	order, err = placeFn(reducedQty)
+	if err != nil {
+		return nil, reducedQty, err
+	}
+	return order, reducedQty, nil
+}
 
 // TradeBuy places a LIMIT buy order
 func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round uint) (any, error) {
@@ -30,7 +117,9 @@ func TradeBuy(ticker string, qty, basePrice, buyFactor float64, round uint) (any
 		fmt.Printf("BUY qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewOrder(tick, "BUY", adjQty, buyPrice)
+	order, _, err := tryPlaceOrder("BUY", tick, "BUY", adjQty, buyPrice, filters, round, func(q float64) (any, error) {
+		return exchange.NewOrder(tick, "BUY", q, buyPrice)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +140,9 @@ func TradeSell(ticker string, qty, basePrice, sellFactor float64, round uint) (a
 		fmt.Printf("SELL qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewOrder(tick, "SELL", adjQty, sellPrice)
+	order, _, err := tryPlaceOrder("SELL", tick, "SELL", adjQty, sellPrice, filters, round, func(q float64) (any, error) {
+		return exchange.NewOrder(tick, "SELL", q, sellPrice)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +162,9 @@ func TradeMarketBuy(ticker string, qty, estimatedPrice float64, round uint) (any
 		fmt.Printf("MARKET BUY qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewMarketOrderWithPrice(tick, "BUY", adjQty, estimatedPrice)
+	order, _, err := tryPlaceOrder("MARKET BUY", tick, "BUY", adjQty, estimatedPrice, filters, round, func(q float64) (any, error) {
+		return exchange.NewMarketOrderWithPrice(tick, "BUY", q, estimatedPrice)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +184,9 @@ func TradeMarketSell(ticker string, qty, estimatedPrice float64, round uint) (an
 		fmt.Printf("MARKET SELL qty adjusted from %.8f to %.8f to meet exchange filters (minNotional=%.2f)\n", qty, adjQty, filters.MinNotional)
 	}
 
-	order, err := exchange.NewMarketOrderWithPrice(tick, "SELL", adjQty, estimatedPrice)
+	order, _, err := tryPlaceOrder("MARKET SELL", tick, "SELL", adjQty, estimatedPrice, filters, round, func(q float64) (any, error) {
+		return exchange.NewMarketOrderWithPrice(tick, "SELL", q, estimatedPrice)
+	})
 	if err != nil {
 		return nil, err
 	}

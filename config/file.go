@@ -21,9 +21,10 @@ type Config struct {
 		PollIntervalSecs   int    `yaml:"poll-interval-secs"`
 	} `yaml:"order-management"`
 	Fees struct {
-		Enabled         bool    `yaml:"enabled"`
-		DefaultTakerPct float64 `yaml:"default-taker-pct"`
-		BufferPct       float64 `yaml:"buffer-pct"`
+		Enabled          bool    `yaml:"enabled"`
+		DefaultTakerPct  float64 `yaml:"default-taker-pct"`
+		BufferPct        float64 `yaml:"buffer-pct"`
+		BuyBackBufferPct float64 `yaml:"buy-back-buffer-pct"`
 	} `yaml:"fees"`
 	Tendency struct {
 		Interval       string `yaml:"interval"`

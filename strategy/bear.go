@@ -43,6 +43,7 @@ func BearTrade(
 	if cfg.BaseURL != "" {
 		exchange.BaseURL = cfg.BaseURL
 	}
+	SetBuyBackBufferPct(cfg.BuyBackBuffer())
 	period := cfg.HistoricalPrices.Period
 	interval := cfg.HistoricalPrices.Interval
 
@@ -421,7 +422,12 @@ func bearTradeLoop(
 						dash.SetPhase("TRAILING STOP")
 						dash.LogInfo(fmt.Sprintf("[fuchsia]Trailing-stop triggered:[-] price %.*f >= trail %.*f (trough %.*f, activation %.*f, trail %.2f%%)",
 							roundPrice, price, roundPrice, trailingStopPrice, roundPrice, lowestPrice, roundPrice, activationPrice, cfg.TrailingStop.TrailingPct))
-						buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
+						// Apply configured buy-back buffer (default 0.2%) so the
+						// wallet's post-fee balance still covers the order. Without
+						// this the 0.1% commission already withheld by Binance can
+						// make the buy-back fail with insufficient balance.
+						buyBackFactor := 1 - cfg.BuyBackBuffer()/100
+						buyBackQty := indicator.RoundFloat((sellProceeds*buyBackFactor)/price, roundAmount)
 						buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 						if err != nil {
 							dash.LogError(fmt.Sprintf("Trailing-Stop MARKET BUY failed: %v", err))
@@ -468,7 +474,8 @@ func bearTradeLoop(
 				pnlPct := (sellPrice - price) / sellPrice * 100
 				dash.LogInfo(fmt.Sprintf("[red]Stop-loss triggered:[-] price %.*f >= SL %.*f (sell %.*f, SL %.2f%%, P&L %+.2f%%)",
 					roundPrice, price, roundPrice, stopLossPrice, roundPrice, sellPrice, effectiveSL, pnlPct))
-				buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
+				buyBackFactor := 1 - cfg.BuyBackBuffer()/100
+				buyBackQty := indicator.RoundFloat((sellProceeds*buyBackFactor)/price, roundAmount)
 				buy, err := TradeMarketBuy(symbol, buyBackQty, price, roundPrice)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("Stop-Loss MARKET BUY failed: %v", err))
@@ -517,7 +524,11 @@ func bearTradeLoop(
 				if aiOrch != nil {
 					dash.LogInfo(fmt.Sprintf("  [green]✓[-] AI buy-back approved"))
 				}
-				buyBackQty := indicator.RoundFloat(sellProceeds/price, roundAmount)
+				// Account for buyFactor (limit price = price*buyFactor) and
+				// configured buy-back buffer (default 0.2%) to cover the
+				// 0.1% trading fee already deducted from sellProceeds.
+				buyBackFactor := 1 - cfg.BuyBackBuffer()/100
+				buyBackQty := indicator.RoundFloat((sellProceeds*buyBackFactor)/(price*buyFactor), roundAmount)
 				buy, err := TradeBuy(symbol, buyBackQty, price, buyFactor, roundPrice)
 				if err != nil {
 					dash.LogError(fmt.Sprintf("BUY order failed: %v", err))

@@ -45,6 +45,9 @@ func (c *Config) Validate() []error {
 	if c.Fees.BufferPct < 0 {
 		errs = append(errs, fmt.Errorf("fees.buffer-pct must be greater than or equal to 0"))
 	}
+	if c.Fees.BuyBackBufferPct < 0 {
+		errs = append(errs, fmt.Errorf("fees.buy-back-buffer-pct must be greater than or equal to 0"))
+	}
 
 	errs = appendInterval(errs, "tendency.interval", c.Tendency.Interval)
 	if c.Tendency.Period < 0 {
