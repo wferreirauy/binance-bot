@@ -52,10 +52,12 @@ type Config struct {
 			Length int `yaml:"length"`
 		} `yaml:"dema"`
 		Macd struct {
-			FastLength      int `yaml:"fast-length"`
-			SlowLength      int `yaml:"slow-length"`
-			SignalLength    int `yaml:"signal-length"`
-			ConsecutiveBars int `yaml:"consecutive-bars"` // require N consecutive bars of histogram in direction for scalp (default 1)
+			FastLength      int     `yaml:"fast-length"`
+			SlowLength      int     `yaml:"slow-length"`
+			SignalLength    int     `yaml:"signal-length"`
+			ConsecutiveBars int     `yaml:"consecutive-bars"`        // require N consecutive bars of histogram in direction for scalp (default 1)
+			MinSeparation   float64 `yaml:"min-separation"`          // when > 0, require histogram had |hist| >= this within the lookback (meaningful prior MACD/signal divergence) before now closing in
+			MinSepLookback  int     `yaml:"min-separation-lookback"` // bars to scan for the prior peak separation (default 20 when min-separation > 0)
 		} `yaml:"macd"`
 		BollingerBands struct {
 			Length     int     `yaml:"length"`

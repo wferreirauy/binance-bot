@@ -332,6 +332,8 @@ func (d *Dashboard) showConfig(mainLayout *tview.Flex) {
 		b.WriteString(fmt.Sprintf("  DEMA: len=[white]%d[-]\n", c.Indicators.Dema.Length))
 		b.WriteString(fmt.Sprintf("  MACD: fast=[white]%d[-] slow=[white]%d[-] signal=[white]%d[-] consec-bars=[white]%d[-]\n",
 			c.Indicators.Macd.FastLength, c.Indicators.Macd.SlowLength, c.Indicators.Macd.SignalLength, c.Indicators.Macd.ConsecutiveBars))
+		b.WriteString(fmt.Sprintf("    min-separation=[white]%.4f[-]  min-sep-lookback=[white]%d[-]\n",
+			c.Indicators.Macd.MinSeparation, c.Indicators.Macd.MinSepLookback))
 		b.WriteString(fmt.Sprintf("  Bollinger: len=[white]%d[-] mult=[white]%.1f[-]\n",
 			c.Indicators.BollingerBands.Length, c.Indicators.BollingerBands.Multiplier))
 		b.WriteString(fmt.Sprintf("  ATR: period=[white]%d[-]\n", c.Indicators.Atr.Period))

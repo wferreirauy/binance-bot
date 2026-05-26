@@ -55,6 +55,8 @@ indicators:
     slow-length: 13     # (was 26)
     signal-length: 5    # (was 9)
     consecutive-bars: 2 # require 2 consecutive bars of histogram direction before MACD signal counts
+    min-separation: 0.002         # MACD signal only fires after histogram was at least this far from zero (in the prior direction) within the lookback — filters out flat noise
+    min-separation-lookback: 20   # bars to scan for the prior peak separation
   bollinger-bands:
     length: 10          # tighter bands = more entry signals (was 20)
     multiplier: 1.5     # narrower bands (was 2.0)

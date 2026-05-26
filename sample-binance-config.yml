@@ -49,6 +49,8 @@ indicators:
     slow-length: 26
     signal-length: 9
     # consecutive-bars: 0  # require N consecutive bars of histogram direction (0=last-bar only)
+    # min-separation: 0.0  # require |max hist| within lookback to reach this threshold before signaling (0=disabled)
+    # min-separation-lookback: 20  # how many bars to scan for prior peak separation when min-separation > 0
   bollinger-bands:
     length: 20
     multiplier: 2.0

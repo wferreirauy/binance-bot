@@ -139,6 +139,19 @@ func evaluateScalp(in scalpEvalInput) scalpEvalResult {
 		dirSym = "<"
 	}
 	macdLabel := fmt.Sprintf("MACD histogram %s prev for %d bar(s) (hist=%.6f, prev=%.6f)", dirSym, consec, hist, prevHist)
+
+	// Optional: require meaningful prior MACD/signal separation in the lookback
+	// (bull: hist must have reached <= -min-separation; bear: >= +min-separation).
+	// Catches "the gap was real, now it's closing in" — filters out flat noise.
+	if cfg.Indicators.Macd.MinSeparation > 0 {
+		lookback := cfg.Indicators.Macd.MinSepLookback
+		if lookback <= 0 {
+			lookback = 20
+		}
+		hadSep, peakSep := macdHadMinSeparation(in.MACDLine, in.SignalLine, lookback, cfg.Indicators.Macd.MinSeparation, in.IsBull)
+		macdMet = macdMet && hadSep
+		macdLabel = fmt.Sprintf("%s & |peak-sep| %.6f ≥ %.6f over %d bars", macdLabel, peakSep, cfg.Indicators.Macd.MinSeparation, lookback)
+	}
 	addCondition(&res, cfg, "macd", macdLabel, macdMet)
 
 	// ---- 3. Tendency / fast trend gate ----
@@ -259,6 +272,53 @@ func histDirectionHolds(macd, signal []float64, n int, isBull bool) bool {
 		}
 	}
 	return true
+}
+
+// macdHadMinSeparation returns (true, peakSignedSep) when, within the last
+// `lookback` bars of the histogram (macd-signal), there was at least one bar
+// whose histogram reached the configured prior-divergence threshold in the
+// direction opposite to the current trade — i.e. for a BULL trade the
+// histogram must have been ≤ -minSep at some point (MACD meaningfully below
+// signal) before now closing back in; for BEAR the histogram must have been
+// ≥ +minSep. peakSignedSep is the most extreme value found in that window
+// (negative for bull-side check, positive for bear-side) — useful for logging.
+func macdHadMinSeparation(macd, signal []float64, lookback int, minSep float64, isBull bool) (bool, float64) {
+	if lookback < 1 || minSep <= 0 || len(macd) < 2 || len(signal) < 2 {
+		return false, 0
+	}
+	start := len(macd) - lookback
+	if start < 0 {
+		start = 0
+	}
+	if start > len(signal)-1 {
+		return false, 0
+	}
+	if start > len(macd)-1 {
+		return false, 0
+	}
+	var peak float64
+	first := true
+	for i := start; i < len(macd) && i < len(signal); i++ {
+		h := macd[i] - signal[i]
+		if first {
+			peak = h
+			first = false
+			continue
+		}
+		if isBull {
+			if h < peak { // most negative
+				peak = h
+			}
+		} else {
+			if h > peak { // most positive
+				peak = h
+			}
+		}
+	}
+	if isBull {
+		return peak <= -minSep, peak
+	}
+	return peak >= minSep, peak
 }
 
 // effectiveTPAndSL computes take-profit / stop-loss percentages, applying

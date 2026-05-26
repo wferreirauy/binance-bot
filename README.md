@@ -8,7 +8,7 @@
 - **Auto Trade** — Automatically detects market tendency and switches between bull/bear strategies per operation; supports forced strategy mode and waits when the account cannot fund the detected side
 - **Bull Trade** — Buy-low-sell-high strategy for uptrending markets
 - **Bear Trade** — Sell-high-buy-low strategy for downtrending markets
-- **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system. v0.14.0 adds pullback-in-trend RSI, anticipatory MACD with optional consecutive-bar confirmation, Bollinger price-touch + squeeze, RSI-divergence bonus, ATR regime filter, recent-extreme guard, ATR-based TP/SL, time-stop, break-even pin, and MACD-peak exit
+- **Scalp Mode** — High-frequency micro-trading using a scoring-based entry system. v0.14.0 adds pullback-in-trend RSI, anticipatory MACD with optional consecutive-bar confirmation, Bollinger price-touch + squeeze, RSI-divergence bonus, ATR regime filter, recent-extreme guard, ATR-based TP/SL, time-stop, break-even pin, and MACD-peak exit. v0.14.2 adds the MACD `min-separation` gate so entries only fire after a meaningful prior MACD/signal gap is now closing in
 - **Advanced Indicators** — RSI (+ optional SMA smoothing), MACD, DEMA, Bollinger Bands (+ width-ratio for squeeze), ADX, ATR, Stochastic RSI, swing-extrema divergence, and volume confirmation
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
 - **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
@@ -234,7 +234,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.14.1
+     v0.14.2
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>
@@ -383,6 +383,8 @@ indicators:
     slow-length: 26
     signal-length: 9
     consecutive-bars: 0   # require N consecutive bars of histogram direction (0=no requirement)
+    min-separation: 0.0   # require |max hist| within lookback to reach this threshold before MACD signal fires (0=disabled)
+    min-separation-lookback: 20  # bars to scan for prior peak histogram separation when min-separation > 0
   bollinger-bands:
     length: 20
     multiplier: 2.0
@@ -419,6 +421,8 @@ indicators:
 | `indicators.macd.slow-length` | int | `26` | Slow MACD EMA length. |
 | `indicators.macd.signal-length` | int | `9` | MACD signal EMA length. |
 | `indicators.macd.consecutive-bars` | int | `0` | Require histogram direction to hold for N consecutive bars to award the MACD scalp signal (0=last-bar only). |
+| `indicators.macd.min-separation` | float | `0` | When > 0, the MACD scalp signal additionally requires the histogram to have reached ≥ this threshold in the prior direction within the lookback (bull: hist ≤ −min-separation, bear: hist ≥ +min-separation). Filters out flat-MACD noise so entries only fire when a meaningful prior MACD/signal gap is now closing in. Typical value: `0.002`. |
+| `indicators.macd.min-separation-lookback` | int | `20` | How many bars to scan for the prior peak histogram separation when `min-separation > 0`. |
 | `indicators.bollinger-bands.length` | int | `20` | Bollinger moving average length. |
 | `indicators.bollinger-bands.multiplier` | float | `2.0` | Standard deviation multiplier for band width. |
 | `indicators.atr.period` | int | `14` | ATR volatility lookback used by dynamic stop-loss logic. |
@@ -648,7 +652,7 @@ The `bull-trade` command is designed to operate during **bull market trends**, l
 In **classic mode**, the bot places a buy order when **all** of the following conditions are true simultaneously. In **scalp mode**, the conditions are scored and entry triggers when `min-score` is reached (see [Scalp Mode Configuration](#scalp-mode-configuration)). Scalp mode uses *pullback-in-trend RSI* (RSI rising from below mid-line) and *Bollinger price-touch* (close at/below lower band) — both designed to catch turning points earlier than the classic extreme thresholds.
 
 1. **RSI**: Classic: value below `lower-limit` (default 30). Scalp: pullback-in-trend (RSI below mid-line and rising for 2 bars), plus optional SMA smoothing via `indicators.rsi.smooth-length`.
-2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is rising bar-over-bar (scalp). The scalp variant fires anticipatorily and can require N consecutive bars of confirmation via `indicators.macd.consecutive-bars`.
+2. **MACD Momentum**: The MACD line crosses above the Signal line (classic) or the MACD histogram (`macd − signal`) is rising bar-over-bar (scalp). The scalp variant fires anticipatorily and can require N consecutive bars of confirmation via `indicators.macd.consecutive-bars`. When `indicators.macd.min-separation` is set, the signal additionally requires the histogram to have been at least that far below zero within the lookback window — i.e. MACD must have meaningfully diverged below signal before now closing the gap, filtering out flat-MACD noise.
 3. **Tendency Confirmation**: The trend direction is "up" (DEMA above EMA). With `scalp-mode.fast-trend-gate`, MACD line above zero alternatively satisfies the trend.
 4. **Bollinger Position**: Classic: DEMA closer to Lower than Upper Band. Scalp: close at/below the lower band (price touch).
 5. **ADX Trend Strength** *(if configured)*: ADX is above the threshold (default 25), confirming a strong trend.
@@ -687,7 +691,7 @@ In **classic mode**, all conditions must be met simultaneously. In **scalp mode*
 The bot will open a short position (sell) when:
 
 1. **RSI**: Value is above the configured `upper-limit` (default 70), indicating the market is overbought and ripe for a reversal downward.
-2. **MACD Momentum**: The MACD line crosses below the Signal line (classic) or the MACD histogram (`macd − signal`) is falling bar-over-bar (scalp). The scalp variant fires anticipatorily: it does not require MACD to already be below signal, only that the gap is closing (or already-negative gap widening) — entering *before* the bearish crossover when momentum begins shifting down.
+2. **MACD Momentum**: The MACD line crosses below the Signal line (classic) or the MACD histogram (`macd − signal`) is falling bar-over-bar (scalp). The scalp variant fires anticipatorily: it does not require MACD to already be below signal, only that the gap is closing (or already-negative gap widening) — entering *before* the bearish crossover when momentum begins shifting down. When `indicators.macd.min-separation` is set, the signal additionally requires the histogram to have been at least that far above zero within the lookback (mirror of the bull rule).
 3. **Tendency**: The trend direction is "down" (DEMA below EMA).
 4. **DEMA Proximity to Bollinger Bands**: The current DEMA is closer to the Upper Band than the Lower Band, suggesting a potential reversal from overbought conditions.
 5. **ADX Trend Strength** *(if configured)*: ADX confirms the trend has strength.
