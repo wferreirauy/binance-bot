@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"reflect"
 	"regexp"
@@ -158,68 +157,23 @@ func bearTradeLoop(
 				continue
 			}
 
-			// indicators
-			dema := indicator.CalculateDEMA(ohlcv.Closes, cfg.Indicators.Dema.Length)
-			currentDema := dema[len(dema)-1]
-			rsi := indicator.CalculateSmoothedRSI(ohlcv.Closes, cfg.Indicators.Rsi.Length, cfg.Indicators.Rsi.SmoothLength)
-			macdLine, signalLine := indicator.CalculateMACD(ohlcv.Closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
-			bb, err := indicator.CalculateBollingerBands(ohlcv.Closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
+			// indicators — shared entry-signal computation (same path as backtest)
+			sig, err := computeEntrySignals(ohlcv, cfg, tendency)
 			if err != nil {
-				dash.LogError(fmt.Sprintf("BollingerBands: %v", err))
+				dash.LogError(fmt.Sprintf("Entry signals: %v", err))
+				time.Sleep(refreshInterval)
+				continue
 			}
-			lowerBand := bb.LowerBand[len(bb.LowerBand)-1]
-			upperBand := bb.UpperBand[len(bb.UpperBand)-1]
-			distanceToUpper := math.Abs(currentDema - upperBand)
-			distanceToLower := math.Abs(currentDema - lowerBand)
+			rsi := sig.RSI
+			macdLine, signalLine := sig.MACDLine, sig.SignalLine
 
-			// MACD cross
-			macdCross := "BULLISH"
-			if macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] && macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1] {
-				macdCross = "BEARISH"
-			}
-
-			// ADX
-			var adxVal float64
-			var adxStrong bool
-			if cfg.Indicators.Adx.Period > 0 {
-				adx := indicator.CalculateADX(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Adx.Period)
-				if len(adx) > 0 {
-					adxVal = adx[len(adx)-1]
-				}
-				adxStrong = len(adx) == 0 || adxVal > float64(cfg.Indicators.Adx.Threshold)
-			} else {
-				adxStrong = true
-			}
-
-			// Volume
-			var currentVolume, avgVolume float64
-			var volumeConfirmed bool
-			if cfg.Indicators.Volume.MaPeriod > 0 {
-				volumeMA := indicator.CalculateSMA(ohlcv.Volumes, cfg.Indicators.Volume.MaPeriod)
-				currentVolume = ohlcv.Volumes[len(ohlcv.Volumes)-1]
-				if len(volumeMA) > 0 {
-					avgVolume = volumeMA[len(volumeMA)-1]
-				}
-				volumeConfirmed = len(volumeMA) == 0 || currentVolume > avgVolume
-			} else {
-				volumeConfirmed = true
-			}
-
-			// Update indicators panel
-			var atrVal float64
-			if cfg.Indicators.Atr.Period > 0 {
-				atrSeries := indicator.CalculateATR(ohlcv.Highs, ohlcv.Lows, ohlcv.Closes, cfg.Indicators.Atr.Period)
-				if len(atrSeries) > 0 {
-					atrVal = atrSeries[len(atrSeries)-1]
-				}
-			}
 			dash.UpdateIndicators(&tui.IndicatorData{
 				RSI: rsi[len(rsi)-1], RSIUpperLimit: cfg.Indicators.Rsi.UpperLimit, RSILowerLimit: cfg.Indicators.Rsi.LowerLimit,
-				MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCross,
-				DEMA: currentDema, UpperBand: upperBand, LowerBand: lowerBand,
-				Tendency: tendency, ADX: adxVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
-				Volume: currentVolume, AvgVolume: avgVolume,
-				ATR: atrVal, Price: price,
+				MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1], MACDCross: macdCrossLabel(sig, false),
+				DEMA: sig.DEMA, UpperBand: sig.UpperBand, LowerBand: sig.LowerBand,
+				Tendency: tendency, ADX: sig.ADXVal, ADXThreshold: cfg.Indicators.Adx.Threshold,
+				Volume: sig.CurrentVolume, AvgVolume: sig.AvgVolume,
+				ATR: sig.ATRVal, Price: price,
 			})
 
 			// AI analysis
@@ -229,8 +183,8 @@ func bearTradeLoop(
 					Symbol: symbol, Price: price, PrevPrice: prevPrice,
 					RSI: rsi[len(rsi)-1], MACDLine: macdLine[len(macdLine)-1], SignalLine: signalLine[len(signalLine)-1],
 					PrevMACDLine: macdLine[len(macdLine)-2], PrevSignalLine: signalLine[len(signalLine)-2],
-					UpperBand: upperBand, LowerBand: lowerBand, DEMA: currentDema, Tendency: tendency,
-					ADX: adxVal, Volume: currentVolume, AvgVolume: avgVolume,
+					UpperBand: sig.UpperBand, LowerBand: sig.LowerBand, DEMA: sig.DEMA, Tendency: tendency,
+					ADX: sig.ADXVal, Volume: sig.CurrentVolume, AvgVolume: sig.AvgVolume,
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				consensus, err := aiOrch.Analyze(ctx, snapshot, "BEAR")
@@ -260,15 +214,7 @@ func bearTradeLoop(
 			// when to sell (bear entry) — scalp mode uses scoring; classic mode requires all conditions
 			var shouldSell bool
 			if cfg.ScalpMode.Enabled {
-				eval := evaluateScalp(scalpEvalInput{
-					IsBull: false, Cfg: cfg,
-					Closes: ohlcv.Closes, RSI: rsi,
-					MACDLine: macdLine, SignalLine: signalLine,
-					BB: bb, Tendency: tendency,
-					ADXStrong: adxStrong, ADXVal: adxVal,
-					CurrentVolume: currentVolume, AvgVolume: avgVolume,
-					ATRVal: atrVal, Price: price,
-				})
+				eval := evaluateScalp(scalpInputFromSignals(sig, cfg, false, ohlcv.Closes))
 				if eval.RegimeBlocked {
 					dash.LogInfo(fmt.Sprintf("[yellow]Regime gate[-] %s — skipping BEAR entry", eval.RegimeReason))
 					time.Sleep(refreshInterval)
@@ -287,24 +233,9 @@ func bearTradeLoop(
 					}
 				}
 			} else {
-				rsiOk := rsi[len(rsi)-1] > float64(cfg.Indicators.Rsi.UpperLimit)
-				macdCrossOk := macdLine[len(macdLine)-2] >= signalLine[len(signalLine)-2] &&
-					macdLine[len(macdLine)-1] < signalLine[len(signalLine)-1]
-				tendOk := tendency == "down"
-				bbOk := distanceToUpper < distanceToLower
-
-				shouldSell = rsiOk && macdCrossOk && tendOk && bbOk &&
-					adxStrong && volumeConfirmed && aiApproved
-
+				met, conditions := evaluateClassicEntry(sig, cfg, false)
+				shouldSell = met && aiApproved
 				if shouldSell {
-					conditions := []entryCondition{
-						{Name: fmt.Sprintf("RSI %.1f > %d", rsi[len(rsi)-1], cfg.Indicators.Rsi.UpperLimit), Met: rsiOk},
-						{Name: fmt.Sprintf("MACD bearish crossover (%.6f < %.6f)", macdLine[len(macdLine)-1], signalLine[len(signalLine)-1]), Met: macdCrossOk},
-						{Name: fmt.Sprintf("Tendency %s = down", tendency), Met: tendOk},
-						{Name: fmt.Sprintf("Closer to upper BB (upper=%.4f, lower=%.4f)", distanceToUpper, distanceToLower), Met: bbOk},
-						{Name: fmt.Sprintf("ADX strong (%.1f > %d)", adxVal, cfg.Indicators.Adx.Threshold), Met: adxStrong},
-						{Name: fmt.Sprintf("Volume confirmed (%.0f > avg %.0f)", currentVolume, avgVolume), Met: volumeConfirmed},
-					}
 					logEntryConditions(dash, "BEAR", conditions, 6, 6, 6, false)
 				}
 			}

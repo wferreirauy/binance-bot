@@ -12,7 +12,7 @@
 - **Advanced Indicators** — RSI (+ optional SMA smoothing), MACD, DEMA, Bollinger Bands (+ width-ratio for squeeze), ADX, ATR, Stochastic RSI, swing-extrema divergence, and volume confirmation
 - **Top Gainers Monitor** — Real-time TUI dashboard of the top 24h movers on Binance
 - **Rotation Scout Mode** — Scans a configured asset basket and rotates through a bridge asset when relative ratios become fee-adjusted opportunities
-- **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading
+- **Backtesting** — Runs registered strategy simulations over recent Binance candles before live trading, using the same shared entry-decision path as the live loops (smoothed RSI, ADX and volume gates included)
 - **Managed Orders** — Optional buy/sell timeouts with partial-fill handling; unfilled entries return to scanning instead of advancing to exit monitoring
 - **Pre-Order Balance Checks** — Reads Binance spot account balances before placing orders and blocks buys/sells that exceed available free funds
 - **Persistent History API** — Stores trade/scout history in JSONL and serves it through a small local HTTP API
@@ -180,6 +180,8 @@ binance-bot -f binance-config.yml backtest -t "BTC/USDT" --strategy classic-bull
 
 Runs a registered strategy over recent Binance candles using the configured indicators, starting balance, and fee assumptions. Available strategies are `classic-bull` and `scalp-bull`.
 
+As of v0.14.3, backtest strategies evaluate entries through the exact same shared decision path as live trading: smoothed RSI (`indicators.rsi.smooth-length`), the ADX gate, and volume confirmation are honored in backtests exactly as configured, instead of being skipped. Backtest results are therefore representative of live entry behavior for the same config.
+
 #### History API
 
 ```bash
@@ -234,7 +236,7 @@ These arguments apply to the `auto-trade`, `bull-trade`, and `bear-trade` comman
      binance-bot [global options] command <command args>
 
   VERSION:
-     v0.14.2
+     v0.14.3
 
   AUTHOR:
      Walter Ferreira <wferreirauy@gmail.com>

@@ -2,12 +2,10 @@ package strategy
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/wferreirauy/binance-bot/config"
 	"github.com/wferreirauy/binance-bot/exchange"
-	"github.com/wferreirauy/binance-bot/indicator"
 )
 
 type Signal string
@@ -67,32 +65,19 @@ func (classicBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 	if i < 2 || i >= len(ohlcv.Closes) {
 		return SignalHold
 	}
-	closes := ohlcv.Closes[:i+1]
-	dema := indicator.CalculateDEMA(closes, cfg.Indicators.Dema.Length)
-	rsi := indicator.CalculateRSI(closes, cfg.Indicators.Rsi.Length)
-	macdLine, signalLine := indicator.CalculateMACD(closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
-	bb, err := indicator.CalculateBollingerBands(closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
-	if err != nil || len(dema) == 0 || len(rsi) == 0 || len(macdLine) < 2 || len(signalLine) < 2 || len(bb.LowerBand) == 0 {
-		return SignalHold
-	}
-	price := closes[len(closes)-1]
+	price := ohlcv.Closes[i]
 	if snapshot.Position {
 		if price <= snapshot.EntryPrice*(1-snapshot.Config.Backtest.FeePct/100) {
 			return SignalHold
 		}
 		return SignalSell
 	}
-	currentDema := dema[len(dema)-1]
-	lowerBand := bb.LowerBand[len(bb.LowerBand)-1]
-	upperBand := bb.UpperBand[len(bb.UpperBand)-1]
-	distanceToUpper := math.Abs(currentDema - upperBand)
-	distanceToLower := math.Abs(currentDema - lowerBand)
-	macdCrossOk := macdLine[len(macdLine)-2] <= signalLine[len(signalLine)-2] &&
-		macdLine[len(macdLine)-1] > signalLine[len(signalLine)-1]
-	if rsi[len(rsi)-1] < float64(cfg.Indicators.Rsi.LowerLimit) &&
-		macdCrossOk &&
-		snapshot.Tendency == "up" &&
-		distanceToLower < distanceToUpper {
+	// Same decision path as the live loops: shared signals + shared rules.
+	sig, err := computeEntrySignalsAt(ohlcv, i, cfg, snapshot.Tendency)
+	if err != nil {
+		return SignalHold
+	}
+	if met, _ := evaluateClassicEntry(sig, cfg, true); met {
 		return SignalBuy
 	}
 	return SignalHold
@@ -116,28 +101,13 @@ func (scalpBullStrategy) Decide(snapshot MarketSnapshot) Signal {
 		}
 		return SignalHold
 	}
-	closes := ohlcv.Closes[:i+1]
-	rsi := indicator.CalculateSmoothedRSI(closes, cfg.Indicators.Rsi.Length, cfg.Indicators.Rsi.SmoothLength)
-	macdLine, signalLine := indicator.CalculateMACD(closes, cfg.Indicators.Macd.FastLength, cfg.Indicators.Macd.SlowLength, cfg.Indicators.Macd.SignalLength)
-	bb, err := indicator.CalculateBollingerBands(closes, cfg.Indicators.BollingerBands.Length, cfg.Indicators.BollingerBands.Multiplier)
-	if err != nil || len(rsi) == 0 || len(macdLine) < 2 || len(signalLine) < 2 || len(bb.LowerBand) == 0 {
+	// Same decision path as the live loops: shared signals feed the scalp
+	// evaluator, so backtests honor ADX/volume exactly like live trading.
+	sig, err := computeEntrySignalsAt(ohlcv, i, cfg, snapshot.Tendency)
+	if err != nil {
 		return SignalHold
 	}
-	var atrVal float64
-	if cfg.Indicators.Atr.Period > 0 {
-		atr := indicator.CalculateATR(ohlcv.Highs[:i+1], ohlcv.Lows[:i+1], closes, cfg.Indicators.Atr.Period)
-		if len(atr) > 0 {
-			atrVal = atr[len(atr)-1]
-		}
-	}
-	eval := evaluateScalp(scalpEvalInput{
-		IsBull: true, Cfg: cfg,
-		Closes: closes, RSI: rsi,
-		MACDLine: macdLine, SignalLine: signalLine,
-		BB: bb, Tendency: snapshot.Tendency,
-		ADXStrong: true, // ADX is permissive in the registry/backtest strategy
-		ATRVal:    atrVal, Price: price,
-	})
+	eval := evaluateScalp(scalpInputFromSignals(sig, cfg, true, ohlcv.Closes[:i+1]))
 	if eval.RegimeBlocked || eval.ExtremeBlocked {
 		return SignalHold
 	}
